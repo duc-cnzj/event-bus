@@ -37,6 +37,8 @@ jobs:
           cd grpc
           git submodule update --init
           make grpc_php_plugin
+          ls
+          mv grpc_php_plugin /usr/local/bin/grpc_php_plugin
 
       - name: build php sdk
         run: |
@@ -47,7 +49,9 @@ jobs:
 
       - name: upload php sdk
         run: |
-          cd sdks/php
+          cp sdks/.gitignore sdks/php/src/DucCnzj/
+          cp sdks/README.md sdks/php/src/DucCnzj/
+          cd sdks/php/src/DucCnzj
           MYPATH=$(pwd)
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
