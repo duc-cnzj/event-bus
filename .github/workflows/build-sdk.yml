@@ -58,8 +58,19 @@ jobs:
     env:
       PHP_SDK_REPO: github.com/DuC-cnZj/event-bus-php-sdk
     name: Build
-    runs-on: chialab/docker-php
+    runs-on: ubuntu-18.04
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Set up php and composer
+        uses: shivammathur/setup-php@2.3.0
+        with:
+          php-version: php7.4
+          extensions: mbstring, intl
+          ini-values: post_max_size=256M, short_open_tag=On
+          coverage: xdebug
+          tools: php-cs-fixer, phpunit
       - name: Get dependencies
         run: |
           sudo apt-get install -y git
@@ -67,6 +78,8 @@ jobs:
           sudo apt-get install unzip
           unzip protoc-3.13.0-linux-x86_64.zip -d $HOME/.local
           export PATH="$PATH:$HOME/.local/bin"
+#          pecl install protobuf
+#          pecl install protobuf-3.4.0
           protoc --version
           git clone -b v1.33.2 https://github.com/grpc/grpc
           cd grpc
@@ -94,3 +107,4 @@ jobs:
           git commit -m "$GITHUB_SHA"
           git remote set-url --push origin https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git
           git push -u origin master
+
