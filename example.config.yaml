@@ -1,0 +1,28 @@
+Debug: false
+RetryTimes: 3
+DLMExpiration: 1800
+MaxJobRunningSeconds: 1800
+
+HttpPort: 7878
+
+RpcPort: 9091
+
+AmqpUrl: amqp://guest:guest@localhost:5672/
+PrefetchCount: 500
+
+# redis
+RedisAddr: localhost:6379
+RedisDB: 0
+RedisUsername:
+RedisPassword:
+
+# cronjob
+CronRepublishEnabled: true
+CronDelayPushEnabled: true
+
+# DATABASE
+DB_HOST: 127.0.0.1
+DB_PORT: 3306
+DB_DATABASE: mq
+DB_USERNAME: root
+DB_PASSWORD:

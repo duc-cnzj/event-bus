@@ -1,0 +1,5 @@
+protos/*.pb.go
+protos/php/src
+protos/php/vendor
+protos/php/composer.lock
+config.yaml

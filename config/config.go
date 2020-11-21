@@ -1,0 +1,39 @@
+package config
+
+type Config struct {
+	// debug mode
+	Debug bool
+
+	// 作业最大执行秒数
+	MaxJobRunningSeconds uint
+	// 作业最大重试次数
+	RetryTimes uint
+	// 分布式锁有效时间
+	DLMExpiration int
+
+	// http port
+	HttpPort string
+
+	// rpc port
+	RpcPort string
+
+	// mq dsn
+	AmqpUrl       string
+	PrefetchCount int
+
+	RedisAddr     string
+	RedisDB       int
+	RedisUsername string
+	RedisPassword string
+
+	// 开启重新推送消息的任务
+	CronRepublishEnabled bool
+	// 开启延迟推送消息的任务
+	CronDelayPushEnabled bool
+
+	DBHost     string
+	DBPort     string
+	DBDatabase string
+	DBUsername string
+	DBPassword string
+}
