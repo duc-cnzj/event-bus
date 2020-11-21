@@ -38,7 +38,9 @@ jobs:
           git submodule update --init
           make grpc_php_plugin
           ls
-          mv grpc_php_plugin /usr/local/bin/grpc_php_plugin
+          ls bins/
+          ls bins/opt/
+          ln -s /usr/local/bin/grpc_php_plugin bins/opt/grpc_php_plugin
 
       - name: build php sdk
         run: |
