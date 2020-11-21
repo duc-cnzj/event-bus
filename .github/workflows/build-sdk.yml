@@ -25,15 +25,6 @@ jobs:
           coverage: xdebug
           tools: php-cs-fixer, phpunit
 
-      - name: Cache node modules
-        uses: actions/cache@v2
-        env:
-          cache-name: cache-dep
-        with:
-          path:
-            - $HOME/.local
-            - grpc
-
       - name: Get dependencies
         run: |
           sudo apt-get install -y git
