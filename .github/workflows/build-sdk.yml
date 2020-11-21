@@ -52,6 +52,9 @@ jobs:
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
           make build-php-sdk
+          ls sdks/php
+          ls sdks/php/src
+
 
       - name: upload php sdk
         run: |
