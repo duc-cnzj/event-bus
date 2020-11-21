@@ -40,7 +40,7 @@ jobs:
           ls
           ls bins/
           ls bins/opt/
-          ln -s /usr/local/bin/grpc_php_plugin bins/opt/grpc_php_plugin
+          ln -s  bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
 
       - name: build php sdk
         run: |
