@@ -32,7 +32,7 @@ jobs:
           unzip protoc-3.13.0-linux-x86_64.zip -d $HOME/.local
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
-          git clone -b v1.33.2 https://github.com/grpc/grpc
+          git clone -b v1.33.2 --depth 1 https://github.com/grpc/grpc
           cd grpc
           git submodule update --init
           make grpc_php_plugin
