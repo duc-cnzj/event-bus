@@ -11,8 +11,7 @@ jobs:
     env:
       PHP_SDK_REPO: github.com/DuC-cnZj/event-bus-php-sdk
     name: Build
-    runs-on: ubuntu-18.04
-
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@master
