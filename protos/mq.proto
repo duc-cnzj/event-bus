@@ -1,7 +1,7 @@
 syntax="proto3";
 
 package mq;
-option go_package="github.com/DuC-cnZj/event-bus-proto";
+option go_package=".;mq";
 
 option php_metadata_namespace="Mq";
 
