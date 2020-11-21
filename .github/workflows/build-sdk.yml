@@ -31,8 +31,6 @@ jobs:
           sudo apt-get install unzip
           unzip protoc-3.13.0-linux-x86_64.zip -d $HOME/.local
           export PATH="$PATH:$HOME/.local/bin"
-#          pecl install protobuf
-#          pecl install protobuf-3.4.0
           protoc --version
           git clone -b v1.33.2 https://github.com/grpc/grpc
           cd grpc
