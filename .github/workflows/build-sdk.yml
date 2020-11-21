@@ -9,6 +9,7 @@ on:
 jobs:
   build-php-sdk:
     env:
+      ACTIONS_ALLOW_UNSECURE_COMMANDS: true
       PHP_SDK_REPO: github.com/DuC-cnZj/event-bus-php-sdk
     name: Build
     runs-on: ubuntu-latest
