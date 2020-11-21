@@ -44,12 +44,9 @@ jobs:
           protoc --version
           make build-php-sdk
           ls sdks/php
-          ls sdks/php/src
-
 
       - name: upload php sdk
         run: |
-          cd sdks/php/src/DucCnzj
           MYPATH=$(pwd)
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
