@@ -10,7 +10,6 @@ jobs:
   build:
     env:
       PTOTO_REPO: github.com/DuC-cnZj/event-bus-proto
-      PHP_SDK_REPO: github.com/DuC-cnZj/event-bus-php-sdk
     name: Build
     runs-on: ubuntu-18.04
     steps:
@@ -56,6 +55,25 @@ jobs:
           git commit -m "$GITHUB_SHA"
           git remote set-url --push origin https://DuC-cnZj:${{ secrets.TOKEN }}@$PTOTO_REPO.git
           git push -u origin master
+
+  build-php-sdk:
+    env:
+      PHP_SDK_REPO: github.com/DuC-cnZj/event-bus-php-sdk
+    name: Build
+    runs-on: chialab/docker-php
+    steps:
+      - name: Get dependencies
+        run: |
+          sudo apt-get install -y git
+          curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.13.0/protoc-3.13.0-linux-x86_64.zip
+          sudo apt-get install unzip
+          unzip protoc-3.13.0-linux-x86_64.zip -d $HOME/.local
+          export PATH="$PATH:$HOME/.local/bin"
+          protoc --version
+          git clone -b v1.33.2 https://github.com/grpc/grpc
+          cd grpc
+          git submodule update --init
+          make grpc_php_plugin
 
       - name: build php sdk
         run: |
