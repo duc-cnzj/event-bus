@@ -1,3 +1,5 @@
+build: build-protos build-php-sdk
+
 build-protos:
 	cd protos && \
 	protoc --go_out=. --go_opt=paths=source_relative \

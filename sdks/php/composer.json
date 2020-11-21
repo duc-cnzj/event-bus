@@ -7,13 +7,13 @@
   },
   "autoload": {
     "psr-4": {
-      "Mq\\": "src/Mq"
+      "DucCnzj\\EventBusSdk\\Mq\\": "src/Mq"
     }
   },
   "extra": {
     "laravel": {
       "providers": [
-        "Mq\\ServiceProvider"
+        "DucCnzj\\EventBusSdk\\Mq\\ServiceProvider"
       ]
     }
   },

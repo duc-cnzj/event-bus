@@ -45,7 +45,7 @@ jobs:
 
       - name: upload php sdk
         run: |
-          cd protos
+          cd sdks/php
           MYPATH=$(pwd)
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
