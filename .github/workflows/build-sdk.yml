@@ -49,7 +49,7 @@ jobs:
           MYPATH=$(pwd)
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
-          cd repo
+          cd php-repo
           mv $MYPATH/* /tmp/php-repo/
           echo $GITHUB_SHA > sha.txt
           git config --local user.name "duc"
