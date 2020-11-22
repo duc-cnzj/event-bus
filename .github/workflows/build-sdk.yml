@@ -66,8 +66,7 @@ jobs:
 
       - name: upload php sdk
         run: |
-          cp sdks/php/.gitignore sdks/php/src/DucCnzj/
-          cp sdks/php/README.md sdks/php/src/DucCnzj/
+          CODE_PATH=$(pwd)
           cd sdks/php/src/DucCnzj
 
           MYPATH=$(pwd)
@@ -76,6 +75,8 @@ jobs:
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
           cd php-repo
           rm -rf ./*
+          mv $CODE_PATH/sdks/php/.gitignore ./
+          mv $CODE_PATH/sdks/php/README.md ./
           mv $MYPATH/* /tmp/php-repo/
           ls -a
           rm -rf vendor
