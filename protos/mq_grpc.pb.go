@@ -17,9 +17,13 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MqClient interface {
+	// php:inline
 	Publish(ctx context.Context, in *Pub, opts ...grpc.CallOption) (*Response, error)
+	// php:inline
 	DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*Response, error)
+	// php:inline
 	Subscribe(ctx context.Context, in *Sub, opts ...grpc.CallOption) (*Response, error)
+	// php:inline
 	Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error)
 }
 
@@ -71,9 +75,13 @@ func (c *mqClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption
 // All implementations must embed UnimplementedMqServer
 // for forward compatibility
 type MqServer interface {
+	// php:inline
 	Publish(context.Context, *Pub) (*Response, error)
+	// php:inline
 	DelayPublish(context.Context, *DelayPublishRequest) (*Response, error)
+	// php:inline
 	Subscribe(context.Context, *Sub) (*Response, error)
+	// php:inline
 	Ack(context.Context, *QueueId) (*Response, error)
 	mustEmbedUnimplementedMqServer()
 }
