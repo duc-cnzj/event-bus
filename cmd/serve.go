@@ -2,14 +2,6 @@ package cmd
 
 import (
 	"context"
-	dlm "github.com/DuC-cnZj/dlm"
-	"github.com/gofiber/fiber/v2"
-	"github.com/robfig/cron/v3"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"mq/adapter"
 	"mq/conn"
 	"mq/hub"
@@ -24,6 +16,15 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	dlm "github.com/DuC-cnZj/dlm"
+	"github.com/gofiber/fiber/v2"
+	"github.com/robfig/cron/v3"
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/spf13/cobra"
 )
@@ -113,7 +114,7 @@ func runHttp(h hub.Interface) {
 
 	app.Get("/", func(ctx *fiber.Ctx) error {
 		return ctx.JSON(struct {
-			Success bool
+			Success bool `json:"success"`
 		}{
 			Success: true,
 		})
@@ -141,8 +142,8 @@ func runHttp(h hub.Interface) {
 		}
 
 		return ctx.JSON(struct {
-			Success bool
-			Queue   string
+			Success bool   `json:"success"`
+			Queue   string `json:"queue"`
 		}{
 			Success: true,
 			Queue:   queue,
