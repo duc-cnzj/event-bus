@@ -125,6 +125,7 @@ jobs:
           if [ ! -f "go.mod" ]; then go mod init $PTOTO_REPO;fi
           mv $MYPATH/* /tmp/repo/
           echo $GITHUB_SHA > sha.txt
+          echo "build at $(date)" >> sha.txt
           git config --local user.name "duc"
           git config --local user.email "1025434218@qq.com"
           git add .
