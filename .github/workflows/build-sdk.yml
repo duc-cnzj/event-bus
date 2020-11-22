@@ -66,9 +66,10 @@ jobs:
 
       - name: upload php sdk
         run: |
-          cp sdks/php/.gitignore sdks/php/src/DucCnzj
-          cp sdks/php/README.md sdks/php/src/DucCnzj
+          cp sdks/php/.gitignore sdks/php/src/DucCnzj/
+          cp sdks/php/README.md sdks/php/src/DucCnzj/
           cd sdks/php/src/DucCnzj
+
           MYPATH=$(pwd)
           ls
           cd /tmp
@@ -76,6 +77,8 @@ jobs:
           cd php-repo
           rm -rf ./*
           mv $MYPATH/* /tmp/php-repo/
+          ls -a
+          rm -rf vendor
           echo $GITHUB_SHA > sha.txt
           git config --local user.name "duc"
           git config --local user.email "1025434218@qq.com"
