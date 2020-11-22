@@ -52,11 +52,10 @@ jobs:
           ls
           ls bins/
           ls bins/opt/
-          cp bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
-
 
       - name: build php sdk
         run: |
+          cp bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
           ls /usr/local/bin/
