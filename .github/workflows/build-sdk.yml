@@ -71,7 +71,7 @@ jobs:
           cd sdks/php/src/DucCnzj
 
           MYPATH=$(pwd)
-          ls
+          ls -a
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
           cd php-repo
