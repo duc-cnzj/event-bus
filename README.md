@@ -19,3 +19,15 @@ https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
 ```shell script
  dk run --rm -v $(pwd)/config.yaml:/config.yaml duccnzj/mq-event-bus
 ```
+
+## SDK
+
+php laravel
+```shell script
+composer require duc_cnzj/event-bus-sdk
+```
+
+golang
+```shell script
+go get -u github.com/DuC-cnZj/event-bus-proto
+```
