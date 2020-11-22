@@ -67,8 +67,8 @@ jobs:
       - name: upload php sdk
         run: |
           ls
-          cp sdks/.gitignore sdks/php/src/DucCnzj/
-          cp sdks/README.md sdks/php/src/DucCnzj/
+          cp sdks/php/.gitignore sdks/php/src/DucCnzj/
+          cp sdks/php/README.md sdks/php/src/DucCnzj/
           cd sdks/php/src/DucCnzj
           MYPATH=$(pwd)
           cd /tmp
