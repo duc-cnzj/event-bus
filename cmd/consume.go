@@ -2,13 +2,14 @@ package cmd
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
 	"mq/conn"
 	"mq/hub"
 	"os"
 	"os/signal"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
 
 	"github.com/spf13/cobra"
 )
@@ -37,7 +38,7 @@ var consumeCmd = &cobra.Command{
 		log.Info("consumer num: ", testConsumerNum)
 		for i := 0; i < testConsumerNum; i++ {
 			go func(i int) {
-				consumer, err := h.ConsumerManager().GetConsumer("test", amqp.ExchangeDirect)
+				consumer, err := h.ConsumerManager().GetConsumer("test_queue", amqp.ExchangeDirect)
 				if err != nil {
 					log.Fatal(err)
 				}

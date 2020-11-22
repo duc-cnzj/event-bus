@@ -2,11 +2,11 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 1
+replicaCount: 10
 
 image:
-  repository: duc/mq-event-bus
-  pullPolicy: IfNotPresent
+  repository: registry.cn-hangzhou.aliyuncs.com/duc-cnzj/event-bus
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: latest
 
@@ -54,20 +54,20 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources: 
+resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  limits:
-    cpu: 100m
-    memory: 128Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
 
 autoscaling:
-  enabled: true
+  enabled: false
   minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 80
@@ -86,13 +86,13 @@ conf:
   DLMExpiration: 1800
   HttpPort: 7878
   RpcPort: 9091
-  PrefetchCount: 500
-  AmqpUrl: amqp://guest:guest@192.168.199.190:5672/
-  RedisAddr: 192.168.199.190:6379
+  PrefetchCount: 100000
+  AmqpUrl: amqp://user:CyW4CzbRcc@rabbitmq:5672/
+  RedisAddr: mq-redis-master.svc.cluster.local:6379
   CronRepublishEnabled: true
   CronDelayPushEnabled: true
-  DB_HOST: 192.168.199.190
+  DB_HOST: 10.43.41.69
   DB_PORT: 3306
   DB_DATABASE: mq
-  DB_USERNAME: root
-  DB_PASSWORD: ""
+  DB_USERNAME: duc
+  DB_PASSWORD: "12345"

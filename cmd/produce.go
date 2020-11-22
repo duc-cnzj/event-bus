@@ -1,17 +1,19 @@
 package cmd
 
-import "github.com/spf13/cobra"
-
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
+
+	"github.com/spf13/cobra"
+
 	"mq/conn"
 	"mq/hub"
 	"os"
 	"os/signal"
 	"syscall"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
 )
 
 var testProducerNum int
@@ -40,7 +42,7 @@ var produceCmd = &cobra.Command{
 		log.Info("producer num: ", testProducerNum)
 		for i := 0; i < testProducerNum; i++ {
 			go func(i int) {
-				producer, err := h.ProducerManager().GetProducer("test", amqp.ExchangeDirect)
+				producer, err := h.ProducerManager().GetProducer("test_queue", amqp.ExchangeDirect)
 				if err != nil {
 					log.Fatal(err)
 				}

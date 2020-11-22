@@ -130,7 +130,7 @@ func runHttp(h hub.Interface) {
 			err error
 			p   hub.ProducerInterface
 		)
-		queue := ctx.Params("queue", "test_queue")
+		queue := ctx.Query("queue", "test_queue")
 
 		if p, err = h.NewProducer(queue, amqp.ExchangeDirect); err != nil {
 			ctx.Status(fiber.StatusServiceUnavailable)
