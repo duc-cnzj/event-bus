@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: |
-            ~/grpc
+            ~/cache
           key: ${{ runner.os }}-grpc
 
       - name: Get grpc dependencies
@@ -49,6 +49,8 @@ jobs:
           cd grpc
           git submodule update --init
           make grpc_php_plugin
+          mkdir ~/cache
+          mv ./* ~/cache/
           ls
           ls bins/
           ls bins/opt/
