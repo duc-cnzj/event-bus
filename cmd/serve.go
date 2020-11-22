@@ -53,8 +53,8 @@ var serveCmd = &cobra.Command{
 		runRpc(h)
 
 		go func() {
-			log.Warn("pprof running at localhost:6060")
-			log.Warn(http.ListenAndServe("localhost:6060", nil))
+			log.Info("pprof running at localhost:6060")
+			log.Info(http.ListenAndServe("localhost:6060", nil))
 		}()
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
@@ -102,7 +102,7 @@ func runRpc(h hub.Interface) {
 		log.Fatal("RpcPort required")
 	}
 	go func() {
-		log.Warnf("rpc running at %s\n", h.Config().RpcPort)
+		log.Infof("rpc running at %s\n", h.Config().RpcPort)
 		if err := server.Serve(listen); err != nil {
 			log.Fatal(err)
 		}
@@ -151,7 +151,7 @@ func runHttp(h hub.Interface) {
 	})
 
 	go func() {
-		log.Warnf("http server running at %s\n", h.Config().HttpPort)
+		log.Infof("http server running at %s\n", h.Config().HttpPort)
 
 		log.Fatal(app.Listen(":" + h.Config().HttpPort))
 	}()
@@ -163,7 +163,7 @@ func runCron(h hub.Interface) *cron.Cron {
 	))
 
 	if h.Config().CronRepublishEnabled {
-		log.Warn("Republish job running.")
+		log.Info("Republish job running.")
 		cr.AddFunc("@every 1m", func() {
 			lock := dlm.NewLock(redisClient, "republish", dlm.WithEX(cfg.DLMExpiration))
 			if lock.Acquire() {
@@ -211,7 +211,7 @@ func runCron(h hub.Interface) *cron.Cron {
 	}
 
 	if h.Config().CronDelayPushEnabled {
-		log.Warn("delay push job running.")
+		log.Info("delay push job running.")
 
 		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(redisClient, "delay publish", dlm.WithEX(cfg.DLMExpiration))

@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"mq/models"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"mq/models"
-	"time"
 )
 
 type DirectProducer struct {
@@ -50,7 +51,7 @@ func (d *DirectProducer) Done() chan *amqp.Error {
 }
 
 func (d *DirectProducer) PrepareConn() error {
-	defer func(t time.Time) { log.Error("DirectProducer PrepareConn", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectProducer PrepareConn", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -83,7 +84,7 @@ func (d *DirectProducer) GetKind() string {
 }
 
 func (d *DirectProducer) PrepareChannel() error {
-	defer func(t time.Time) { log.Error("DirectProducer prepareChannel", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectProducer prepareChannel", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -97,7 +98,7 @@ func (d *DirectProducer) PrepareChannel() error {
 }
 
 func (d *DirectProducer) PrepareExchange() error {
-	defer func(t time.Time) { log.Error("DirectProducer prepareExchange", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectProducer prepareExchange", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -117,7 +118,7 @@ func (d *DirectProducer) PrepareExchange() error {
 }
 
 func (d *DirectProducer) PrepareQueueDeclare() error {
-	defer func(t time.Time) { log.Error("DirectProducer prepareQueueDeclare", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectProducer prepareQueueDeclare", time.Since(t)) }(time.Now())
 
 	var err error
 	if _, err = d.channel.QueueDeclare(
@@ -134,7 +135,7 @@ func (d *DirectProducer) PrepareQueueDeclare() error {
 }
 
 func (d *DirectProducer) PrepareQueueBind() error {
-	defer func(t time.Time) { log.Error("DirectProducer prepareQueueBind", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectProducer prepareQueueBind", time.Since(t)) }(time.Now())
 
 	var err error
 	if err = d.channel.QueueBind(d.queueName, d.queueName, DefaultExchange, false, nil); err != nil {
@@ -308,7 +309,7 @@ func (d *DirectConsumer) PrepareQos() error {
 }
 
 func (d *DirectConsumer) PrepareConn() error {
-	defer func(t time.Time) { log.Error("DirectConsumer PrepareConn", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectConsumer PrepareConn", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -325,7 +326,7 @@ func (d *DirectConsumer) PrepareConn() error {
 }
 
 func (d *DirectConsumer) PrepareChannel() error {
-	defer func(t time.Time) { log.Error("DirectConsumer prepareChannel", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectConsumer prepareChannel", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -339,7 +340,7 @@ func (d *DirectConsumer) PrepareChannel() error {
 }
 
 func (d *DirectConsumer) PrepareExchange() error {
-	defer func(t time.Time) { log.Error("DirectConsumer prepareExchange", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectConsumer prepareExchange", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -359,7 +360,7 @@ func (d *DirectConsumer) PrepareExchange() error {
 }
 
 func (d *DirectConsumer) PrepareQueueDeclare() error {
-	defer func(t time.Time) { log.Error("DirectConsumer prepareQueueDeclare", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectConsumer prepareQueueDeclare", time.Since(t)) }(time.Now())
 
 	var err error
 	if _, err = d.channel.QueueDeclare(
@@ -376,7 +377,7 @@ func (d *DirectConsumer) PrepareQueueDeclare() error {
 }
 
 func (d *DirectConsumer) PrepareQueueBind() error {
-	defer func(t time.Time) { log.Error("DirectConsumer prepareQueueBind", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Warn("DirectConsumer prepareQueueBind", time.Since(t)) }(time.Now())
 
 	var err error
 	if err = d.channel.QueueBind(d.queueName, d.queueName, DefaultExchange, false, nil); err != nil {
