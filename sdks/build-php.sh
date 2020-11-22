@@ -12,6 +12,7 @@ mv EventBus src && \
 pwd && \
 ls && \
 ls src && \
+ls src/Mq && \
 cat composer.json && \
 cat src/Mq/Mq.php && \
 cat src/Mq/DelayPublishRequest.php && \
