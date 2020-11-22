@@ -35,8 +35,12 @@ message DelayPublishRequest {
 }
 
 service Mq {
+  // php:inline
   rpc publish(Pub) returns (Response);
+  // php:inline
   rpc delayPublish(DelayPublishRequest) returns (Response);
+  // php:inline
   rpc subscribe(Sub) returns (Response);
+  // php:inline
   rpc ack(QueueId) returns (Response);
 }
