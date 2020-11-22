@@ -28,7 +28,7 @@ message QueueId {
   uint64 id = 1;
 }
 
-message delayPublishRequest {
+message DelayPublishRequest {
   string data = 1;
   string queue = 2;
   uint64 seconds = 3;
@@ -36,7 +36,7 @@ message delayPublishRequest {
 
 service Mq {
   rpc publish(Pub) returns (Response);
-  rpc delayPublish(delayPublishRequest) returns (Response);
+  rpc delayPublish(DelayPublishRequest) returns (Response);
   rpc subscribe(Sub) returns (Response);
   rpc ack(QueueId) returns (Response);
 }
