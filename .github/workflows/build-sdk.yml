@@ -59,7 +59,7 @@ jobs:
         run: |
           ls
           ls grpc
-          cp grpc/bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
+          cp ~/cache/bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
           ls /usr/local/bin/
