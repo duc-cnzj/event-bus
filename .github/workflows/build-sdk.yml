@@ -40,17 +40,20 @@ jobs:
           ls
           ls bins/
           ls bins/opt/
-          ln -s  bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
+          mv  bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
 
       - name: build php sdk
         run: |
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
+          ls /usr/local/bin/
           make build-php-sdk
           ls sdks/php
+          ls sdks/php/src
 
       - name: upload php sdk
         run: |
+          ls
           cp sdks/.gitignore sdks/php/src/DucCnzj/
           cp sdks/README.md sdks/php/src/DucCnzj/
           cd sdks/php/src/DucCnzj
