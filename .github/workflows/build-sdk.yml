@@ -51,9 +51,6 @@ jobs:
           make grpc_php_plugin
           mkdir ~/cache
           mv ./* ~/cache/
-          ls
-          ls bins/
-          ls bins/opt/
 
       - name: build php sdk
         run: |
