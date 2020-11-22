@@ -33,6 +33,18 @@ jobs:
           unzip protoc-3.13.0-linux-x86_64.zip -d $HOME/.local
           export PATH="$PATH:$HOME/.local/bin"
           protoc --version
+
+      - name: Cache multiple paths
+        id: cache-grpc
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/grpc
+          key: ${{ runner.os }}-grpc
+
+      - name: Get grpc dependencies
+        if: steps.cache-grpc.outputs.cache-hit != 'true'
+        run: |
           git clone -b v1.33.2 --depth 1 https://github.com/grpc/grpc
           cd grpc
           git submodule update --init
@@ -42,12 +54,6 @@ jobs:
           ls bins/opt/
           cp bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
 
-      - name: Cache multiple paths
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/grpc
-          key: grpc-files
 
       - name: build php sdk
         run: |
