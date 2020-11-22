@@ -12,7 +12,6 @@ mv EventBus src && \
 pwd && \
 ls && \
 cat composer.json && \
-ls src/src && \
 cat src/Mq/Mq.php && \
 cat src/Mq/DelayPublishRequest.php && \
 composer update && ./vendor/bin/rpc-generator $(pwd)
