@@ -7,8 +7,8 @@ option php_metadata_namespace="DucCnzj\\EventBus\\Mq";
 option php_namespace="DucCnzj\\EventBus\\Mq";
 
 message Pub {
-  string data = 1;
-  string queue = 2;
+  string queue = 1;
+  string data = 2;
 }
 
 message Response {
@@ -29,8 +29,8 @@ message QueueId {
 }
 
 message DelayPublishRequest {
-  string data = 1;
-  string queue = 2;
+  string queue = 1;
+  string data = 2;
   uint64 seconds = 3;
 }
 
