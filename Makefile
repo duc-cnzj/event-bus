@@ -8,4 +8,4 @@ build-protos:
 	&& ls -al
 
 build-php-sdk:
-	cd sdks && rm -rf php/src && bash build-php.sh
+	cd sdks && bash build-php.sh

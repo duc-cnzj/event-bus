@@ -7,13 +7,9 @@ protoc --proto_path=../protos/  --proto_path=. --php_out=./php/src --grpc_out=./
 
 cd ./php &&  \
 cp composer.json src/DucCnzj && \
+cp README.md src/DucCnzj && \
+cp .gitignore src/DucCnzj && \
 cd src/DucCnzj && \
 mv EventBus src && \
-pwd && \
-ls && \
-ls src && \
-ls src/Mq && \
-cat composer.json && \
-cat src/Mq/Mq.php && \
-cat src/Mq/DelayPublishRequest.php && \
-composer update && ./vendor/bin/rpc-generator $(pwd)
+composer update && \
+./vendor/bin/rpc-generator $(pwd)
