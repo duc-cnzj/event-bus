@@ -5,5 +5,5 @@ if [ ! -d ./php/src ]; then
 fi
 protoc --proto_path=../protos/  --proto_path=. --php_out=./php/src --grpc_out=./php/src --plugin=protoc-gen-grpc=/usr/local/bin/grpc_php_plugin ../protos/*.proto
 
-cd ./php &&  cp composer.json src/DucCnzj && cd src/DucCnzj && mv EventBus src
+cd ./php &&  cp composer.json src/DucCnzj && cd src/DucCnzj && mv EventBus src && pwd && ls
 composer update && ./vendor/bin/rpc-generator $(pwd)

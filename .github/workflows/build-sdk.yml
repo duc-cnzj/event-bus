@@ -40,7 +40,14 @@ jobs:
           ls
           ls bins/
           ls bins/opt/
-          mv  bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
+          cp bins/opt/grpc_php_plugin /usr/local/bin/grpc_php_plugin
+
+      - name: Cache multiple paths
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/grpc
+          key: grpc-files
 
       - name: build php sdk
         run: |
