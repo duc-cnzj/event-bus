@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "charts.fullname" . }}-configmap
+  labels:
+    {{- include "charts.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    Debug: {{ default false .Values.conf.Debug }}
+    RetryTimes: {{ default "3" .Values.conf.RetryTimes }}
+    DLMExpiration: {{ default "1800" .Values.conf.DLMExpiration }}
+    MaxJobRunningSeconds: {{ default "1800" .Values.conf.MaxJobRunningSeconds }}
+
+    HttpPort: {{ default "7878" .Values.conf.HttpPort }}
+
+    RpcPort: {{ default "9091" .Values.conf.RpcPort }}
+
+    AmqpUrl: {{ default "" .Values.conf.AmqpUrl }}
+    PrefetchCount: {{ default "500" .Values.conf.PrefetchCount }}
+
+    # redis
+    RedisAddr: {{ default "localhost:6379" .Values.conf.RedisAddr }}
+    RedisDB: {{ default "0" .Values.conf.RedisDB }}
+    RedisUsername: {{ default "" .Values.conf.RedisUsername | quote }}
+    RedisPassword: {{ default "" .Values.conf.RedisPassword  }}
+
+    # cronjob
+    CronRepublishEnabled: {{ default true .Values.conf.CronRepublishEnabled  }}
+    CronDelayPushEnabled: {{ default true .Values.conf.CronDelayPushEnabled }}
+
+    # DATABASE
+    DB_HOST: {{ default "127.0.0.1" .Values.conf.DB_HOST |quote }}
+    DB_PORT: {{ default "3306" .Values.conf.DB_PORT |quote }}
+    DB_DATABASE: {{ default "mq" .Values.conf.DB_DATABASE |quote }}
+    DB_USERNAME: {{ default "root" .Values.conf.DB_USERNAME |quote }}
+    DB_PASSWORD: {{ default "" .Values.conf.DB_PASSWORD |quote }}

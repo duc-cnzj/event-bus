@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: nginx
+  repository: duc/mq-event-bus
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
@@ -37,8 +37,9 @@ securityContext: {}
   # runAsUser: 1000
 
 service:
-  type: ClusterIP
-  port: 80
+  type: NodePort
+  httpPort: 80
+  rpcPort: 9091
 
 ingress:
   enabled: false
@@ -53,22 +54,22 @@ ingress:
   #    hosts:
   #      - chart-example.local
 
-resources: {}
+resources: 
   # We usually recommend not to specify default resources and to leave this as a conscious
   # choice for the user. This also increases chances charts run on environments with little
   # resources, such as Minikube. If you do want to specify resources, uncomment the following
   # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  # limits:
-  #   cpu: 100m
-  #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
 
 autoscaling:
-  enabled: false
+  enabled: true
   minReplicas: 1
-  maxReplicas: 100
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 80
   # targetMemoryUtilizationPercentage: 80
 
@@ -78,20 +79,20 @@ tolerations: []
 
 affinity: {}
 
-config:
+conf:
+  Debug: false
   MaxJobRunningSeconds: 1800
   RetryTimes: 3
   DLMExpiration: 1800
   HttpPort: 7878
   RpcPort: 9091
   PrefetchCount: 500
-  Debug: false
-  AmqpUrl: amqp://guest:guest@localhost:5672/
-  RedisAddr: localhost:6379
+  AmqpUrl: amqp://guest:guest@192.168.199.190:5672/
+  RedisAddr: 192.168.199.190:6379
   CronRepublishEnabled: true
   CronDelayPushEnabled: true
-  DB_HOST: 127.0.0.1
+  DB_HOST: 192.168.199.190
   DB_PORT: 3306
   DB_DATABASE: mq
   DB_USERNAME: root
-  DB_PASSWORD:
+  DB_PASSWORD: ""
