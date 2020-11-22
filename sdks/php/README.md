@@ -5,11 +5,11 @@
 ## Install
 
 ```shell script
-composer require duc_cnzj/event-bus-sdk
+composer require duc_cnzj/event-bus-sdk:"dev-master"
 ```
 
 ## Configuration
 
 ```
-MQ_HOST=your_grpc_host
+MQ_HOST=localhost:9091
 ```
