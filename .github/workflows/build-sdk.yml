@@ -66,11 +66,11 @@ jobs:
 
       - name: upload php sdk
         run: |
-          ls
-          cp sdks/php/.gitignore sdks/php/src/DucCnzj/
-          cp sdks/php/README.md sdks/php/src/DucCnzj/
-          cd sdks/php/src/DucCnzj
           MYPATH=$(pwd)
+          ls
+          cp sdks/php/.gitignore $MYPATH/
+          cp sdks/php/README.md $MYPATH/
+          cd sdks/php/src/DucCnzj
           cd /tmp
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PHP_SDK_REPO.git php-repo
           cd php-repo
