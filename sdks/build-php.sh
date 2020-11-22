@@ -11,6 +11,7 @@ cd src/DucCnzj && \
 mv EventBus src && \
 pwd && \
 ls && \
+ls src && \
 cat composer.json && \
 cat src/Mq/Mq.php && \
 cat src/Mq/DelayPublishRequest.php && \
