@@ -11,4 +11,7 @@ cd src/DucCnzj && \
 mv EventBus src && \
 pwd && \
 ls && \
+cat composer.json && \
+ls src && \
+cat src/Mq/Mq.php && \
 composer update && ./vendor/bin/rpc-generator $(pwd)
