@@ -154,7 +154,7 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 		return producer, nil
 	}
 
-	if producer, err = h.pm.GetProducer(queueName, kind); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(queueName, kind); err != nil {
 		return nil, err
 	}
 
@@ -183,7 +183,7 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 		return consumer, nil
 	}
 
-	if consumer, err = h.cm.GetConsumer(queueName, kind); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind); err != nil {
 		return nil, err
 	}
 
