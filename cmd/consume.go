@@ -34,7 +34,10 @@ var consumeCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		defer func() {
+			cancel()
+			log.Warn("ctx canceled")
+		}()
 
 		h := hub.NewHub(mqConn, cfg, db)
 		log.Info("consumer num: ", testConsumerNum)
