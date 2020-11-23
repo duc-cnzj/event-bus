@@ -205,10 +205,13 @@ func (d *DirectProducer) Close() {
 	log.Info("before producer close ", d.queueName)
 	d.hub.UnRegisterProducer(d)
 	select {
+	case <-d.hub.AmqpConnDone():
+		log.Error("producer closing but amqp conn done.")
 	case <-d.Done():
+		log.Info("producer closeChan done.")
 	default:
 		if err := d.channel.Close(); err != nil {
-			log.Error(err)
+			log.Errorf("Close channel err %v %s", err, d.queueName)
 		}
 	}
 	log.Info("after producer close ", d.queueName)
@@ -442,8 +445,6 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 			log.Info("new consumer hub ctx done")
 			return
 		case <-d.Done():
-			log.Info("before UnRegisterConsumer(c): ", d.GetQueueName())
-			log.Info("after UnRegisterConsumer(c): ", d.GetQueueName())
 		case <-d.hub.AmqpConnDone():
 			log.Info("hub.NotifyConnClose consumer")
 			return
@@ -454,14 +455,17 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 }
 
 func (d *DirectConsumer) Close() {
-	log.Info("before producer close ", d.queueName)
+	log.Info("before consumer close ", d.queueName)
 	d.hub.UnRegisterConsumer(d)
 	select {
+	case <-d.hub.AmqpConnDone():
+		log.Warn("consumer closing but amqp conn done.")
 	case <-d.Done():
+		log.Info("consumer closeChan done.")
 	default:
 		if err := d.channel.Close(); err != nil {
-			log.Error(err)
+			log.Errorf("Close channel err %v %s", err, d.queueName)
 		}
 	}
-	log.Info("after producer close ", d.queueName)
+	log.Info("after consumer close ", d.queueName)
 }

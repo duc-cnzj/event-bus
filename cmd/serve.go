@@ -68,18 +68,16 @@ var serveCmd = &cobra.Command{
 		})
 		log.Info("receive: ", s)
 
-		if _, err := h.GetAmqpConn(); err == nil {
-			done := make(chan struct{})
-			go func() {
-				h.Close()
-				done <- struct{}{}
-			}()
+		done := make(chan struct{})
+		go func() {
+			h.Close()
+			done <- struct{}{}
+		}()
 
-			select {
-			case <-time.After(30 * time.Second):
-				log.Error("timeout shutdown!(10s)")
-			case <-done:
-			}
+		select {
+		case <-time.After(30 * time.Second):
+			log.Error("timeout shutdown!(10s)")
+		case <-done:
 		}
 		log.Info("server shutdown...")
 	},

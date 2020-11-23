@@ -34,11 +34,13 @@ var consumeCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		h := hub.NewHub(mqConn, cfg, db)
 		log.Info("consumer num: ", testConsumerNum)
 		for i := 0; i < testConsumerNum; i++ {
 			go func(i int) {
-				consumer, err := h.ConsumerManager().GetConsumer("test_queue", amqp.ExchangeDirect)
+				consumer, err := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -60,7 +62,6 @@ var consumeCmd = &cobra.Command{
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		<-ch
 		h.Close()
-		cancel()
 		log.Println("shutdown...")
 	},
 }

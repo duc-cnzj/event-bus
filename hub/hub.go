@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -257,22 +258,36 @@ func (h *Hub) IsClosed() bool {
 }
 
 func (h *Hub) Close() {
-	log.Info("hub closing")
+	var (
+		db  *sql.DB
+		err error
+	)
+	log.Info("hub closing.")
 	h.cancel()
 	h.closed = true
-	log.Info("hub cancel")
-	h.CloseAllProducer()
-	log.Info("hub producer closed")
-	h.CloseAllConsumer()
-	log.Info("hub consumer closed")
+	log.Info("hub canceled.")
+	if !h.Conn.IsClosed() && h.Conn != nil {
+		h.CloseAllProducer()
+		log.Info("hub producer closed.")
+		h.CloseAllConsumer()
+		log.Info("hub consumer closed.")
 
-	if h.Conn != nil {
-		if err := h.Conn.Close(); err != nil {
+		if err = h.Conn.Close(); err != nil {
 			log.Error(err)
 		}
+		log.Info("hub amqp conn closed.")
 	}
 
-	log.Info("hub closed")
+	if db, err = h.DB.DB(); err != nil {
+		log.Error(err)
+	}
+	if err = db.Close(); err != nil {
+		log.Error(err)
+	}
+
+	log.Info("sql db closed.")
+
+	log.Info("hub closed.")
 }
 
 func (h *Hub) CloseAllConsumer() {

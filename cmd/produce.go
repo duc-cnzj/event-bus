@@ -42,7 +42,7 @@ var produceCmd = &cobra.Command{
 		log.Info("producer num: ", testProducerNum)
 		for i := 0; i < testProducerNum; i++ {
 			go func(i int) {
-				producer, err := h.ProducerManager().GetProducer("test_queue", amqp.ExchangeDirect)
+				producer, err := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
 				if err != nil {
 					log.Fatal(err)
 				}
