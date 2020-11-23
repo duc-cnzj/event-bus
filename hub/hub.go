@@ -56,8 +56,8 @@ type Hub struct {
 	pMu sync.RWMutex
 	cMu sync.RWMutex
 
-	pm *ProducerManager
-	cm *ConsumerManager
+	pm ProducerManagerInterface
+	cm ConsumerManagerInterface
 
 	ctx    context.Context
 	cancel context.CancelFunc
