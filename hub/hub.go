@@ -266,7 +266,7 @@ func (h *Hub) Close() {
 	h.cancel()
 	h.closed = true
 	log.Info("hub canceled.")
-	if !h.Conn.IsClosed() && h.Conn != nil {
+	if h.Conn != nil && !h.Conn.IsClosed() {
 		h.CloseAllProducer()
 		log.Info("hub producer closed.")
 		h.CloseAllConsumer()
