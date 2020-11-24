@@ -120,6 +120,7 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 		producer ProducerInterface
 		err      error
 	)
+
 	if producer, err = h.ProducerManager().GetProducer(queueName, kind); err != nil {
 		return nil, err
 	}
@@ -180,7 +181,7 @@ func (h *Hub) Close() {
 	if h.IsClosed() {
 		return
 	}
-	defer h.closed.setTrue()
+	h.closed.setTrue()
 	log.Info("hub closing.")
 	h.cancel()
 	log.Info("hub canceled.")

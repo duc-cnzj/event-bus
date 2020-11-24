@@ -133,8 +133,6 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 		consumer ConsumerInterface
 	)
 
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
 	key := cm.getKey(queueName, kind)
 
 	if consumer, ok = cm.getConsumerIfHas(key); ok {

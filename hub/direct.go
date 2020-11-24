@@ -13,6 +13,8 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var ServerUnavailable = status.Errorf(codes.Unavailable, "server unavailable")
+
 type DirectProducer struct {
 	*ProducerBase
 }
@@ -217,8 +219,7 @@ func (d *DirectProducer) Close() {
 		log.Infof("producer %s already closed.", d.GetQueueName())
 		return
 	}
-	defer d.closed.setTrue()
-
+	d.closed.setTrue()
 	select {
 	case <-d.Done():
 		log.Info("producer exit when d.Done()")
@@ -278,6 +279,12 @@ func (d *DirectConsumer) GetKind() string {
 
 func (d *DirectConsumer) Consume(ctx context.Context) (string, uint64, error) {
 	select {
+	case <-d.hub.Done():
+		log.Warn("hub done")
+		return "", 0, ServerUnavailable
+	case <-d.hub.AmqpConnDone():
+		log.Warn("server amqp done")
+		return "", 0, ServerUnavailable
 	case <-ctx.Done():
 		log.Warn("Consume client done")
 		return "", 0, errors.New("client done")
@@ -301,7 +308,7 @@ func (d *DirectConsumer) Consume(ctx context.Context) (string, uint64, error) {
 			data.Ack(false)
 			return msg.Data, uint64(queue.ID), nil
 		}
-		return "", 0, status.Errorf(codes.Unavailable, "server unavailable")
+		return "", 0, ServerUnavailable
 	}
 }
 
@@ -481,7 +488,7 @@ func (d *DirectConsumer) Close() {
 		log.Infof("consumer %s is already closed.", d.GetQueueName())
 		return
 	}
-	defer d.closed.setTrue()
+	d.closed.setTrue()
 	select {
 	case <-d.hub.AmqpConnDone():
 		if err := d.channel.Close(); err != nil {
