@@ -245,7 +245,6 @@ func runCron(h hub.Interface) *cron.Cron {
 					if p, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 						return
 					}
-					log.Println("delay push", queue.Data, queue.QueueName)
 					err := p.Publish(hub.Message{
 						Data:         queue.Data,
 						RetryTimes:   0,

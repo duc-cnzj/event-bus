@@ -1,4 +1,5 @@
 Debug: false
+PrintConfig: false
 RetryTimes: 3
 DLMExpiration: 1800
 MaxJobRunningSeconds: 1800
