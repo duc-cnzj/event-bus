@@ -180,7 +180,7 @@ func (h *Hub) Close() {
 	if h.IsClosed() {
 		return
 	}
-	h.closed.setTrue()
+	defer h.closed.setTrue()
 	log.Info("hub closing.")
 	h.cancel()
 	log.Info("hub canceled.")

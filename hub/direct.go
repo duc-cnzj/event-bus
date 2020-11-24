@@ -217,12 +217,15 @@ func (d *DirectProducer) Close() {
 		log.Infof("producer %s already closed.", d.GetQueueName())
 		return
 	}
-	d.closed.setTrue()
+	defer d.closed.setTrue()
 
 	select {
-	case <-d.hub.AmqpConnDone():
 	case <-d.Done():
 		log.Info("producer exit when d.Done()")
+	case <-d.hub.AmqpConnDone():
+		if err := d.channel.Close(); err != nil {
+			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+		}
 	default:
 		if err := d.channel.Close(); err != nil {
 			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
@@ -478,9 +481,12 @@ func (d *DirectConsumer) Close() {
 		log.Infof("consumer %s is already closed.", d.GetQueueName())
 		return
 	}
-	d.closed.setTrue()
+	defer d.closed.setTrue()
 	select {
 	case <-d.hub.AmqpConnDone():
+		if err := d.channel.Close(); err != nil {
+			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+		}
 		//log.Warn("consumer closing but amqp conn done.")
 	case <-d.Done():
 		//log.Info("consumer closeChan done.")
