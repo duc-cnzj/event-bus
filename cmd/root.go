@@ -78,6 +78,7 @@ func initConfig() {
 	}
 	cfg = &config.Config{
 		Debug:                viper.GetBool("Debug"),
+		PrintConfig:          viper.GetBool("PrintConfig"),
 		MaxJobRunningSeconds: viper.GetUint("MaxJobRunningSeconds"),
 		RetryTimes:           viper.GetUint("RetryTimes"),
 		DLMExpiration:        viper.GetInt("DLMExpiration"),
@@ -97,11 +98,23 @@ func initConfig() {
 		RedisUsername:        viper.GetString("RedisUsername"),
 		RedisDB:              viper.GetInt("RedisDB"),
 	}
+	printConfig()
+	if cfg.Debug {
+		log.SetLevel(log.DebugLevel)
+		//log.SetReportCaller(true)
+	}
+}
+
+func printConfig() {
+	if !cfg.PrintConfig {
+		return
+	}
 	l := len(getLarger(getLarger(cfg.DBHost, cfg.AmqpUrl), cfg.RedisAddr))
 	f := "#%25v: %" + strconv.Itoa(-l) + "v\t#"
 	padding := strings.Repeat("#", l+31)
 	log.Warn(padding)
 	log.Warnf(f, "Debug", cfg.Debug)
+	log.Warnf(f, "PrintConfig", cfg.PrintConfig)
 	log.Warnf(f, "MaxJobRunningSeconds", cfg.MaxJobRunningSeconds)
 	log.Warnf(f, "RetryTimes", cfg.RetryTimes)
 	log.Warnf(f, "DLMExpiration", cfg.DLMExpiration)
@@ -121,10 +134,6 @@ func initConfig() {
 	log.Warnf(f, "REDIS_PASSWORD", cfg.RedisPassword)
 	log.Warnf(f, "REDIS_DB", cfg.RedisDB)
 	log.Warn(padding)
-	if cfg.Debug {
-		log.SetLevel(log.DebugLevel)
-		//log.SetReportCaller(true)
-	}
 }
 
 func getLarger(i, j string) string {

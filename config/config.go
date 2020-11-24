@@ -3,6 +3,8 @@ package config
 type Config struct {
 	// debug mode
 	Debug bool
+	// 打印config信息
+	PrintConfig bool
 
 	// 作业最大执行秒数
 	MaxJobRunningSeconds uint
