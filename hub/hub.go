@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var NilConnError = errors.New("conn is nil")
+var AmqpConnClosed = errors.New("amqp conn closed")
 
 type atomicBool int32
 
@@ -165,7 +165,7 @@ func (h *Hub) GetAmqpConn() (*amqp.Connection, error) {
 		return h.amqpConn, nil
 	}
 
-	return nil, NilConnError
+	return nil, AmqpConnClosed
 }
 
 func (h *Hub) IsClosed() bool {
