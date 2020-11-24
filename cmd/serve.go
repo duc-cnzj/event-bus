@@ -1,7 +1,9 @@
 package cmd
 
 import (
+	"bytes"
 	"context"
+	"fmt"
 	"mq/adapter"
 	"mq/conn"
 	"mq/hub"
@@ -13,6 +15,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"runtime"
 	"sync"
 	"syscall"
 	"time"
@@ -75,8 +78,8 @@ var serveCmd = &cobra.Command{
 		}()
 
 		select {
-		case <-time.After(30 * time.Second):
-			log.Error("timeout shutdown!(10s)")
+		case <-time.After(60 * time.Second):
+			log.Error("timeout shutdown!(60s)")
 		case <-done:
 		}
 		log.Info("server shutdown...")
@@ -122,15 +125,19 @@ func runHttp(h hub.Interface) {
 		return ctx.SendString("pong")
 	})
 
+	app.Get("/stats", func(ctx *fiber.Ctx) error {
+		return ctx.SendString(fmt.Sprintf("Consumers: %d, Producers: %d, NumGoroutine: %d\n", h.ConsumerManager().Count(), h.ProducerManager().Count(), runtime.NumGoroutine()))
+	})
+
 	app.Get("/pub", func(ctx *fiber.Ctx) error {
 		log.Debug("web pub")
 		var (
 			err error
 			p   hub.ProducerInterface
 		)
-		queue := ctx.Query("queue", "test_queue")
+		bufferString := bytes.NewBufferString(ctx.Query("queue", "test_queue")).String()
 
-		if p, err = h.NewProducer(queue, amqp.ExchangeDirect); err != nil {
+		if p, err = h.NewProducer(bufferString, amqp.ExchangeDirect); err != nil {
 			ctx.Status(fiber.StatusServiceUnavailable)
 
 			return ctx.SendString("server unavailable")
@@ -144,7 +151,7 @@ func runHttp(h hub.Interface) {
 			Queue   string `json:"queue"`
 		}{
 			Success: true,
-			Queue:   queue,
+			Queue:   ctx.Query("queue", "test_queue"),
 		})
 	})
 
@@ -157,7 +164,7 @@ func runHttp(h hub.Interface) {
 
 func runCron(h hub.Interface) *cron.Cron {
 	cr := cron.New(cron.WithChain(
-		cron.Recover(&adapter.CronLoggerAdapter{}), // or use cron.DefaultLogger
+		cron.Recover(&adapter.CronLoggerAdapter{}),
 	))
 
 	if h.Config().CronRepublishEnabled {

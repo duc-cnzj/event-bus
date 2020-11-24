@@ -17,8 +17,9 @@ type DirectProducer struct {
 	*ProducerBase
 }
 
-func NewDirectBuilder(queueName string, hub Interface) ProducerBuilder {
+func NewDirectProducer(queueName string, hub Interface) ProducerBuilder {
 	d := &DirectProducer{ProducerBase: &ProducerBase{
+		pm:        hub.ProducerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,
 		hub:       hub,
@@ -76,7 +77,7 @@ func (d *DirectProducer) GetChannel() *amqp.Channel {
 }
 
 func (d *DirectProducer) GetQueueName() string {
-	return d.queueName
+	return d.queue.Name
 }
 
 func (d *DirectProducer) GetKind() string {
@@ -118,10 +119,16 @@ func (d *DirectProducer) PrepareExchange() error {
 }
 
 func (d *DirectProducer) PrepareQueueDeclare() error {
-	defer func(t time.Time) { log.Warn("DirectProducer prepareQueueDeclare", time.Since(t)) }(time.Now())
+	defer func(t time.Time) {
+		log.Warnf("DirectProducer prepareQueueDeclare queueName %s %v", d.queueName, time.Since(t))
+	}(time.Now())
 
-	var err error
-	if _, err = d.channel.QueueDeclare(
+	var (
+		err   error
+		queue amqp.Queue
+	)
+
+	if queue, err = d.channel.QueueDeclare(
 		d.queueName,
 		true,
 		false,
@@ -129,8 +136,12 @@ func (d *DirectProducer) PrepareQueueDeclare() error {
 		false,
 		nil,
 	); err != nil {
+		log.Error(err)
 		return err
 	}
+
+	d.queue = queue
+
 	return nil
 }
 
@@ -138,7 +149,7 @@ func (d *DirectProducer) PrepareQueueBind() error {
 	defer func(t time.Time) { log.Warn("DirectProducer prepareQueueBind", time.Since(t)) }(time.Now())
 
 	var err error
-	if err = d.channel.QueueBind(d.queueName, d.queueName, DefaultExchange, false, nil); err != nil {
+	if err = d.channel.QueueBind(d.queue.Name, d.queue.Name, DefaultExchange, false, nil); err != nil {
 		return err
 	}
 	return nil
@@ -150,28 +161,28 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 	)
 
 	if err = d.PrepareConn(); err != nil {
-		log.Error("NewProducer PrepareConn", err)
+		log.Info("NewProducer PrepareConn", err)
 		return nil, err
 	}
 
 	if err = d.PrepareChannel(); err != nil {
-		log.Error("NewProducer prepareChannel", err)
+		log.Info("NewProducer prepareChannel", err)
 		return nil, err
 	}
 
 	if err = d.PrepareExchange(); err != nil {
-		log.Error("NewProducer prepareExchange", err)
+		log.Info("NewProducer prepareExchange", err)
 		return nil, err
 	}
 
 	if err = d.PrepareQueueDeclare(); err != nil {
-		log.Error("NewProducer prepareQueueDeclare", err)
+		log.Info("NewProducer prepareQueueDeclare", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQueueBind(); err != nil {
-		log.Error("NewProducer prepareQueueBind", err)
+		log.Info("NewProducer prepareQueueBind", err)
 
 		return nil, err
 	}
@@ -181,40 +192,44 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 	go func() {
 		defer func() {
 			d.Close()
+			log.Warnf("PRODUCER EXIT %s", d.GetQueueName())
 		}()
 
 		select {
 		case <-d.Done():
-			log.Info("producer listener return when producer channel closed")
-			return
+			//log.Info("producer listener return when producer channel closed")
 		case <-d.hub.Done():
-			log.Info("producer listener return hub ctx done")
-			return
+			//log.Info("producer listener return hub ctx done")
 		case <-d.hub.AmqpConnDone():
-			log.Info("producer listener return when hub.NotifyConnClose")
-			return
+			//log.Info("producer listener return when hub.notifyConnClose")
 		}
 	}()
-
-	log.Debug("new producer queue: " + d.GetQueueName())
 
 	return d, nil
 }
 
+func (d *DirectProducer) RemoveSelf() {
+	d.pm.RemoveProducer(d)
+}
+
 func (d *DirectProducer) Close() {
-	log.Info("before producer close ", d.queueName)
-	d.hub.UnRegisterProducer(d)
+	if d.closed.isSet() {
+		log.Infof("producer %s already closed.", d.GetQueueName())
+		return
+	}
+	d.closed.setTrue()
+
 	select {
 	case <-d.hub.AmqpConnDone():
-		log.Error("producer closing but amqp conn done.")
 	case <-d.Done():
-		log.Info("producer closeChan done.")
+		log.Info("producer exit when d.Done()")
 	default:
 		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.queueName)
+			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
 		}
 	}
-	log.Info("after producer close ", d.queueName)
+	d.RemoveSelf()
+	log.Infof("####### producer closed %s #######", d.GetQueueName())
 }
 
 type DirectConsumer struct {
@@ -234,6 +249,7 @@ func (d *DirectConsumer) Nack(id uint64) error {
 
 func NewDirectConsumer(queueName string, hub Interface) ConsumerBuilder {
 	return &DirectConsumer{ConsumerBase: &ConsumerBase{
+		cm:        hub.ConsumerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,
 		hub:       hub,
@@ -250,7 +266,7 @@ func (d *DirectConsumer) GetChannel() *amqp.Channel {
 }
 
 func (d *DirectConsumer) GetQueueName() string {
-	return d.queueName
+	return d.queue.Name
 }
 
 func (d *DirectConsumer) GetKind() string {
@@ -291,7 +307,7 @@ func (d *DirectConsumer) PrepareDelivery() error {
 		delivery <-chan amqp.Delivery
 		err      error
 	)
-	if delivery, err = d.channel.Consume(d.queueName, "", false, false, false, false, nil); err != nil {
+	if delivery, err = d.channel.Consume(d.GetQueueName(), "", false, false, false, false, nil); err != nil {
 		return err
 	}
 	d.delivery = delivery
@@ -365,8 +381,11 @@ func (d *DirectConsumer) PrepareExchange() error {
 func (d *DirectConsumer) PrepareQueueDeclare() error {
 	defer func(t time.Time) { log.Warn("DirectConsumer prepareQueueDeclare", time.Since(t)) }(time.Now())
 
-	var err error
-	if _, err = d.channel.QueueDeclare(
+	var (
+		err   error
+		queue amqp.Queue
+	)
+	if queue, err = d.channel.QueueDeclare(
 		d.queueName,
 		true,
 		false,
@@ -376,6 +395,8 @@ func (d *DirectConsumer) PrepareQueueDeclare() error {
 	); err != nil {
 		return err
 	}
+	d.queue = queue
+
 	return nil
 }
 
@@ -383,7 +404,7 @@ func (d *DirectConsumer) PrepareQueueBind() error {
 	defer func(t time.Time) { log.Warn("DirectConsumer prepareQueueBind", time.Since(t)) }(time.Now())
 
 	var err error
-	if err = d.channel.QueueBind(d.queueName, d.queueName, DefaultExchange, false, nil); err != nil {
+	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), DefaultExchange, false, nil); err != nil {
 		return err
 	}
 	return nil
@@ -435,19 +456,17 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 		return nil, err
 	}
 	d.closeChan = d.channel.NotifyClose(make(chan *amqp.Error))
-	log.Debug("new consumer queue: " + d.queueName)
 	go func() {
 		defer func() {
 			d.Close()
+			log.Warnf("CONSUMER EXIT %s", d.GetQueueName())
 		}()
 		select {
 		case <-d.hub.Done():
 			log.Info("new consumer hub ctx done")
-			return
 		case <-d.Done():
 		case <-d.hub.AmqpConnDone():
-			log.Info("hub.NotifyConnClose consumer")
-			return
+			log.Info("hub.notifyConnClose consumer")
 		}
 	}()
 
@@ -455,17 +474,22 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 }
 
 func (d *DirectConsumer) Close() {
-	log.Info("before consumer close ", d.queueName)
-	d.hub.UnRegisterConsumer(d)
+	if d.closed.isSet() {
+		log.Infof("consumer %s is already closed.", d.GetQueueName())
+		return
+	}
+	d.closed.setTrue()
 	select {
 	case <-d.hub.AmqpConnDone():
-		log.Warn("consumer closing but amqp conn done.")
+		//log.Warn("consumer closing but amqp conn done.")
 	case <-d.Done():
-		log.Info("consumer closeChan done.")
+		//log.Info("consumer closeChan done.")
 	default:
 		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.queueName)
+			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
 		}
 	}
-	log.Info("after consumer close ", d.queueName)
+	d.cm.RemoveConsumer(d)
+
+	log.Info("after consumer close ", d.GetQueueName())
 }

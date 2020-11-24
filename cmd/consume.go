@@ -9,8 +9,6 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
-
 	"github.com/spf13/cobra"
 )
 
@@ -40,10 +38,11 @@ var consumeCmd = &cobra.Command{
 		}()
 
 		h := hub.NewHub(mqConn, cfg, db)
-		log.Info("consumer num: ", testConsumerNum)
+		log.Infof("consumer num: %d queue %s", testConsumerNum, testQueueName)
+
 		for i := 0; i < testConsumerNum; i++ {
 			go func(i int) {
-				consumer, err := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
+				consumer, err := hub.NewDirectConsumer(testQueueName, h).Build()
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -56,6 +55,7 @@ var consumeCmd = &cobra.Command{
 				select {
 				case <-ctx.Done():
 				case <-h.AmqpConnDone():
+				case <-h.Done():
 				}
 				log.Infof("consumer %d exit", i)
 			}(i)

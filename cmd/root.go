@@ -123,7 +123,7 @@ func initConfig() {
 	log.Warn(padding)
 	if cfg.Debug {
 		log.SetLevel(log.DebugLevel)
-		log.SetReportCaller(true)
+		//log.SetReportCaller(true)
 	}
 }
 

@@ -16,18 +16,10 @@ type ConsumerInterface interface {
 	Close()
 }
 
-type ConsumerBuilder interface {
-	Build() (ConsumerInterface, error)
-}
-
-type PrepareConsumer interface {
-	Prepareable
-	PrepareQos() error
-	PrepareDelivery() error
-}
-
 type ConsumerBase struct {
 	queueName string
+	cm        ConsumerManagerInterface
+	queue     amqp.Queue
 	conn      *amqp.Connection
 	channel   *amqp.Channel
 	exchange  string
@@ -36,6 +28,8 @@ type ConsumerBase struct {
 
 	kind string
 	hub  Interface
+
+	closed atomicBool
 
 	closeChan chan *amqp.Error
 }

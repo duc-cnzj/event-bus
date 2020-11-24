@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
 )
 
 var testProducerNum int
@@ -38,11 +37,12 @@ var produceCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		h := hub.NewHub(mqConn, cfg, db)
-		log.Info("producer num: ", testProducerNum)
+		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
 		for i := 0; i < testProducerNum; i++ {
 			go func(i int) {
-				producer, err := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
+				producer, _ := hub.NewDirectProducer(testQueueName, h).Build()
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -57,6 +57,7 @@ var produceCmd = &cobra.Command{
 				select {
 				case <-ctx.Done():
 				case <-h.AmqpConnDone():
+				case <-h.Done():
 				}
 				log.Infof("producer %d exit", i)
 			}(i)
@@ -66,7 +67,6 @@ var produceCmd = &cobra.Command{
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		<-ch
 		h.Close()
-		cancel()
 		log.Println("shutdown...")
 	},
 }

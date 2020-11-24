@@ -1,6 +1,8 @@
 package hub
 
-import "github.com/streadway/amqp"
+import (
+	"github.com/streadway/amqp"
+)
 
 type ProducerInterface interface {
 	GetConn() *amqp.Connection
@@ -11,26 +13,18 @@ type ProducerInterface interface {
 	Close()
 }
 
-type Prepareable interface {
-	PrepareConn() error
-	PrepareChannel() error
-	PrepareExchange() error
-	PrepareQueueDeclare() error
-	PrepareQueueBind() error
-}
-
-type ProducerBuilder interface {
-	Build() (ProducerInterface, error)
-}
-
 type ProducerBase struct {
+	pm        ProducerManagerInterface
 	queueName string
+	queue     amqp.Queue
 	conn      *amqp.Connection
 	channel   *amqp.Channel
 	exchange  string
 
 	kind string
 	hub  Interface
+
+	closed atomicBool
 
 	closeChan chan *amqp.Error
 }

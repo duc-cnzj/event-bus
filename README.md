@@ -31,3 +31,7 @@ golang
 ```shell script
 go get -u github.com/DuC-cnZj/event-bus-proto
 ```
+
+## 坑
+
+fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改过，都指向同一个地址，你前一个请求的值和会被后一个请求的值更改！！！
