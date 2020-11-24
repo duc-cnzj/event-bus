@@ -121,6 +121,10 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 		err      error
 	)
 
+	if h.IsClosed() {
+		return nil, ServerUnavailable
+	}
+
 	if producer, err = h.ProducerManager().GetProducer(queueName, kind); err != nil {
 		return nil, err
 	}
@@ -133,6 +137,10 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 		consumer ConsumerInterface
 		err      error
 	)
+
+	if h.IsClosed() {
+		return nil, ServerUnavailable
+	}
 
 	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind); err != nil {
 		return nil, err
