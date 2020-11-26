@@ -4,7 +4,6 @@ import "time"
 
 type MessageInterface interface {
 	GetData() string
-	GetRefId() int
 	GetRunAfter() *time.Time
 	GetDelaySeconds() uint
 	IsDelay() bool
@@ -22,10 +21,6 @@ type Message struct {
 
 func (m *Message) GetData() string {
 	return m.Data
-}
-
-func (m *Message) GetRefId() int {
-	return m.Ref
 }
 
 func (m *Message) GetRunAfter() *time.Time {

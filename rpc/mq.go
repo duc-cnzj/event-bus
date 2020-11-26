@@ -57,16 +57,8 @@ func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq
 // Ack 客户端确认已消费成功
 func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
 	log.Debug("Ack", queueId.Id)
-	var (
-		queue hub.ProducerInterface
-		err   error
-	)
 
-	if queue, err = m.Hub.GetAckQueueProducer(); err != nil {
-		return nil, err
-	}
-
-	if err = queue.Publish(hub.Message{UniqueId: queueId.GetId()}); err != nil {
+	if err := m.Hub.Ack(queueId.GetId()); err != nil {
 		return nil, err
 	}
 

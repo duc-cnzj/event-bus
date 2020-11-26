@@ -28,5 +28,6 @@ DB_DATABASE: mq_v2
 DB_USERNAME: root
 DB_PASSWORD:
 
-EachQueueConsumerNum: 5
-EachQueueProducerNum: 2
+EachQueueConsumerNum: 1
+EachQueueProducerNum: 1
+BackConsumerNum: 3

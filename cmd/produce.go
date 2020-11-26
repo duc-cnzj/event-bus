@@ -41,19 +41,22 @@ var produceCmd = &cobra.Command{
 		h := hub.NewHub(mqConn, cfg, db)
 		h.Config().EachQueueProducerNum = int64(testProducerNum)
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
-		go func() {
-			for {
-				select {
-				case <-h.Done():
-					return
-				default:
-					producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
-					producer.Publish(hub.Message{
-						Data: fmt.Sprintf("data to test queue by %d\n", producer.GetId()),
-					})
+
+		for i := 0; i < testProducerNum; i++ {
+			producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
+			go func() {
+				for {
+					select {
+					case <-h.Done():
+						return
+					default:
+						producer.Publish(hub.Message{
+							Data: fmt.Sprintf("data to test queue by %d\n", producer.GetId()),
+						})
+					}
 				}
-			}
-		}()
+			}()
+		}
 
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)

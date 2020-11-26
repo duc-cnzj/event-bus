@@ -30,6 +30,8 @@ func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
 func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type Interface interface {
+	Ack(string) error
+	NAck(string) error
 	ConsumeConfirmQueue()
 	ConsumeAckQueue()
 
@@ -117,7 +119,60 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	return h
 }
 
+func (h *Hub) Ack(uniqueId string) error {
+	var (
+		err      error
+		producer ProducerInterface
+	)
+
+	if producer, err = h.GetAckQueueProducer(); err != nil {
+		return err
+	}
+
+	if err = producer.Publish(Message{UniqueId: uniqueId}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Hub) NAck(uniqueId string) error {
+	var (
+		err   error
+		queue models.Queue
+	)
+	now := time.Now()
+	if err = h.GetDBConn().Model(&models.Queue{}).Where("unique_id", uniqueId).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			h.GetDBConn().Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "unique_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"nacked_at"}),
+			}).Create(&models.Queue{
+				UniqueId: uniqueId,
+				NAckedAt: &now,
+			})
+		}
+	}
+
+	if queue.NAcked() {
+		return nil
+	}
+	if queue.Acked() {
+		return errors.New("already acked")
+	}
+
+	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NAckedAt: &now})
+
+	return nil
+}
+
 func (h *Hub) ConsumeConfirmQueue() {
+	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
+		go h.consumeConfirmQueue()
+	}
+}
+
+func (h *Hub) consumeConfirmQueue() {
 	var (
 		err      error
 		consumer ConsumerInterface
@@ -131,8 +186,6 @@ func (h *Hub) ConsumeConfirmQueue() {
 		log.Error("err ConsumeConfirmQueue()", err)
 		return
 	}
-
-	defer consumer.Close()
 
 	for {
 		select {
@@ -155,66 +208,13 @@ func (h *Hub) ConsumeConfirmQueue() {
 	}
 }
 
-func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
-	defer delivery.Ack(false)
-	var (
-		msg = &Message{}
-		err error
-		now = time.Now()
-	)
-	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
-		log.Error(err)
-		return
-	}
-	var queue = &models.Queue{
-		UniqueId: msg.UniqueId,
-	}
-	if err = db.Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			if ackMsg {
-				db.Clauses(clause.OnConflict{
-					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
-				}).Create(&models.Queue{
-					UniqueId: msg.UniqueId,
-					AckedAt:  &now,
-				})
-			} else {
-				db.Clauses(clause.OnConflict{
-					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref"}),
-				}).Create(&models.Queue{
-					UniqueId:    msg.UniqueId,
-					RetryTimes:  msg.RetryTimes,
-					ConfirmedAt: &now,
-					Data:        msg.Data,
-					QueueName:   msg.QueueName,
-				})
-			}
-		} else {
-			log.Error(err)
-		}
-		return
-	}
-
-	if queue.NAcked() {
-		log.Warn("queue status", queue.NAckedAt)
-		return
-	}
-
-	if ackMsg {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &now})
-	} else {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
-			RetryTimes:  msg.RetryTimes,
-			ConfirmedAt: &now,
-			Data:        msg.Data,
-			QueueName:   msg.QueueName,
-		})
+func (h *Hub) ConsumeAckQueue() {
+	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
+		go h.consumeAckQueue()
 	}
 }
 
-func (h *Hub) ConsumeAckQueue() {
+func (h *Hub) consumeAckQueue() {
 	var (
 		err      error
 		consumer ConsumerInterface
@@ -228,7 +228,6 @@ func (h *Hub) ConsumeAckQueue() {
 		log.Error("err GetAckQueueConsumer()", err)
 		return
 	}
-	defer consumer.Close()
 
 	for {
 		select {
@@ -425,47 +424,71 @@ func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
-func Ack(db *gorm.DB, uniqueId string) error {
-	var queue = &models.Queue{UniqueId: uniqueId}
-	now := time.Now()
-	if err := db.Find(queue).Error; err != nil {
-		return err
+func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
+	defer delivery.Ack(false)
+	var (
+		msg = &Message{}
+		err error
+		now = time.Now()
+	)
+	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+		log.Error(err)
+		return
 	}
-
-	if queue.NAcked() {
-		return errors.New("already nacked")
-	}
-
-	if queue.Acked() {
-		return nil
-	}
-
-	queue.AckedAt = &now
-	db.Updates(queue)
-
-	return nil
-}
-
-func Nack(db *gorm.DB, uniqueId string) error {
 	var queue = &models.Queue{
-		UniqueId: uniqueId,
+		UniqueId: msg.UniqueId,
 	}
-	now := time.Now()
-	if err := db.Find(queue).Error; err != nil {
-		return err
-	}
-
-	if queue.Acked() {
-		return errors.New("already acked")
+	if err = db.Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if ackMsg {
+				db.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "unique_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
+				}).Create(&models.Queue{
+					UniqueId: msg.UniqueId,
+					AckedAt:  &now,
+				})
+			} else {
+				db.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "unique_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref"}),
+				}).Create(&models.Queue{
+					UniqueId:    msg.UniqueId,
+					RetryTimes:  msg.RetryTimes,
+					ConfirmedAt: &now,
+					Data:        msg.Data,
+					QueueName:   msg.QueueName,
+				})
+			}
+		} else {
+			log.Error(err)
+		}
+		return
 	}
 
 	if queue.NAcked() {
-		return nil
+		if !ackMsg {
+			db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+				RetryTimes:  msg.RetryTimes,
+				ConfirmedAt: &now,
+				Data:        msg.Data,
+				QueueName:   msg.QueueName,
+			})
+		}
+		log.Warn("queue status", queue.NAckedAt)
+		return
 	}
-	queue.NAckedAt = &now
-	db.Updates(queue)
 
-	return nil
+	if ackMsg {
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &now})
+	} else {
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+			RetryTimes:  msg.RetryTimes,
+			ConfirmedAt: &now,
+			Data:        msg.Data,
+			QueueName:   msg.QueueName,
+		})
+	}
 }
 
 func DelayPublish(db *gorm.DB, queueName string, msg Message) (*models.DelayQueue, error) {

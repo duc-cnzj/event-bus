@@ -41,4 +41,5 @@ type Config struct {
 
 	EachQueueProducerNum int64
 	EachQueueConsumerNum int64
+	BackConsumerNum      int64
 }

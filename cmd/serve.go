@@ -172,7 +172,7 @@ func runCron(h hub.Interface) *cron.Cron {
 
 	if h.Config().CronRepublishEnabled {
 		log.Info("Republish job running.")
-		cr.AddFunc("@every 1m", func() {
+		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(redisClient, "republish", dlm.WithEX(cfg.DLMExpiration))
 			if lock.Acquire() {
 				lockList.Store(lock.GetCurrentOwner(), lock)
@@ -181,8 +181,16 @@ func runCron(h hub.Interface) *cron.Cron {
 					lock.Release()
 				}()
 				log.Debug("[SUCCESS]: cron republish")
+				t := time.Now().Add(-time.Duration(h.Config().MaxJobRunningSeconds) * time.Second).String()
 				var queues []*models.Queue
-				if err := db.Where("retry_times < ?", cfg.RetryTimes).Where("delay_seconds = ?", 0).Where("run_after is null OR run_after < ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
+				if err := db.Where("retry_times < ?", cfg.RetryTimes).
+					Where("nacked_at is null").
+					Where("acked_at is null").
+					Where("confirmed_at is not null").
+					Where("created_at < ?", t).
+					Limit(10000).
+					Find(&queues).
+					Error; err != nil {
 					log.Panic(err)
 				}
 				log.Debug("queues len:", len(queues))
@@ -200,6 +208,7 @@ func runCron(h hub.Interface) *cron.Cron {
 						return
 					}
 					err := p.Publish(hub.Message{
+						UniqueId:   queue.UniqueId,
 						Data:       queue.Data,
 						RetryTimes: queue.RetryTimes + 1,
 						Ref:        int(queue.ID),
@@ -208,7 +217,6 @@ func runCron(h hub.Interface) *cron.Cron {
 						log.Panic(err)
 						return
 					}
-					db.Delete(queue)
 				}
 			} else {
 				log.Warning("republish: Acquire Fail!")
@@ -230,8 +238,8 @@ func runCron(h hub.Interface) *cron.Cron {
 					lock.Release()
 				}()
 				log.Debug("[SUCCESS]: delay publish")
-				var queues []*models.Queue
-				if err := db.Where("retry_times = 0").Where("delay_seconds > ?", 0).Where("run_after <= ? and run_after IS NOT NULL", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
+				var queues []*models.DelayQueue
+				if err := db.Where("run_after <= ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
 					log.Panic(err)
 				}
 				log.Debug("delay queues len:", len(queues))
@@ -249,11 +257,9 @@ func runCron(h hub.Interface) *cron.Cron {
 						return
 					}
 					err := p.Publish(hub.Message{
-						Data:         queue.Data,
-						RetryTimes:   0,
-						Ref:          int(queue.ID),
-						RunAfter:     nil,
-						DelaySeconds: 0,
+						QueueName: queue.QueueName,
+						UniqueId:  queue.UniqueId,
+						Data:      queue.Data,
 					})
 					if err != nil {
 						log.Panic("delay publish error", err)

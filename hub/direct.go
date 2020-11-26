@@ -258,10 +258,7 @@ type DirectConsumer struct {
 }
 
 func (d *DirectConsumer) Ack(uniqueId string) error {
-	if err := Ack(d.hub.GetDBConn(), uniqueId); err != nil {
-		return err
-	}
-	return nil
+	return d.hub.Ack(uniqueId)
 }
 
 func (d *DirectConsumer) GetId() int64 {
@@ -269,7 +266,7 @@ func (d *DirectConsumer) GetId() int64 {
 }
 
 func (d *DirectConsumer) Nack(uniqueId string) error {
-	return Nack(d.hub.GetDBConn(), uniqueId)
+	return d.hub.NAck(uniqueId)
 }
 
 func NewDirectConsumer(queueName string, hub Interface, id int64) ConsumerBuilder {
@@ -326,11 +323,19 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		if ok {
 			msg := &Message{}
 			json.Unmarshal(data.Body, &msg)
+			log.Error(msg)
 			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
 				return nil, err
 			}
-			ackProducer.Publish(*msg)
-			data.Ack(false)
+			if err := ackProducer.Publish(*msg); err != nil {
+				log.Error(err)
+				return nil, err
+			}
+
+			if err := data.Ack(false); err != nil {
+				log.Error(err)
+				return nil, err
+			}
 
 			return msg, nil
 		}

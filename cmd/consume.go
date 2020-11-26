@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/streadway/amqp"
@@ -41,17 +42,31 @@ var consumeCmd = &cobra.Command{
 		h.Config().EachQueueConsumerNum = int64(testConsumerNum)
 		log.Infof("consumer num: %d queue %s", testConsumerNum, testQueueName)
 
-		go func() {
-			for {
-				select {
-				case <-h.Done():
-					return
-				default:
-					consumer, _ := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
-					consumer.Consume(ctx)
+		for i := 0; i < testConsumerNum; i++ {
+
+			consumer, _ := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
+
+			go func() {
+				for {
+					select {
+					case <-ctx.Done():
+						return
+					case <-h.Done():
+						return
+					case d, ok := <-consumer.Delivery():
+						if !ok {
+							return
+						}
+						var msg hub.Message
+						json.Unmarshal(d.Body, &msg)
+						if err := consumer.Ack(msg.UniqueId); err != nil {
+							log.Error(err)
+						}
+						d.Ack(false)
+					}
 				}
-			}
-		}()
+			}()
+		}
 
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)

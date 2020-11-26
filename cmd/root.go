@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"gorm.io/gorm/logger"
 	"mq/adapter"
 	"mq/config"
 	"mq/models"
@@ -99,6 +100,7 @@ func initConfig() {
 		RedisDB:              viper.GetInt("RedisDB"),
 		EachQueueConsumerNum: viper.GetInt64("EachQueueConsumerNum"),
 		EachQueueProducerNum: viper.GetInt64("EachQueueProducerNum"),
+		BackConsumerNum:      viper.GetInt64("BackConsumerNum"),
 	}
 	printConfig()
 	if cfg.Debug {
@@ -137,6 +139,7 @@ func printConfig() {
 	log.Warnf(f, "REDIS_DB", cfg.RedisDB)
 	log.Warnf(f, "EachQueueConsumerNum", cfg.EachQueueConsumerNum)
 	log.Warnf(f, "EachQueueProducerNum", cfg.EachQueueProducerNum)
+	log.Warnf(f, "BackConsumerNum", cfg.BackConsumerNum)
 	log.Warn(padding)
 }
 
@@ -181,4 +184,10 @@ func LoadDB() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	db.AutoMigrate(&models.DelayQueue{}, &models.Queue{})
+	if !cfg.Debug {
+		log.Println("logger.Silent")
+		db.Logger.LogMode(logger.Silent)
+	} else {
+		db.Logger.LogMode(logger.Info)
+	}
 }
