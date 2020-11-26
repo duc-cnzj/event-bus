@@ -81,18 +81,35 @@ affinity: {}
 
 conf:
   Debug: false
-  MaxJobRunningSeconds: 1800
+  PrintConfig: false
   RetryTimes: 3
   DLMExpiration: 1800
+  MaxJobRunningSeconds: 1800
+
   HttpPort: 7878
+
   RpcPort: 9091
-  PrefetchCount: 100000
-  AmqpUrl: amqp://user:CyW4CzbRcc@rabbitmq:5672/
-  RedisAddr: mq-redis-master.svc.cluster.local:6379
-  CronRepublishEnabled: true
-  CronDelayPushEnabled: true
-  DB_HOST: 10.43.41.69
+
+  AmqpUrl: amqp://guest:guest@localhost:5672/
+  PrefetchCount: 500
+
+  # redis
+  RedisAddr: localhost:6379
+  RedisDB: 0
+  RedisUsername: ""
+  RedisPassword: ""
+
+  # cronjob
+  CronRepublishEnabled: false
+  CronDelayPushEnabled: false
+
+  # DATABASE
+  DB_HOST: 127.0.0.1
   DB_PORT: 3306
-  DB_DATABASE: mq
-  DB_USERNAME: duc
-  DB_PASSWORD: "12345"
+  DB_DATABASE: mq_v2
+  DB_USERNAME: root
+  DB_PASSWORD: ""
+
+  EachQueueConsumerNum: 5
+  EachQueueProducerNum: 3
+  BackConsumerNum: 20

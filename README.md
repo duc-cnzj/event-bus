@@ -1,16 +1,8 @@
 # 微服务消息总线
 
-## TODO
-
-1. confirmed, acked 可控
-2. 延迟队列
-3. 定时任务修改
-4. 多个生产/消费者
-
 ## 生产过快导致消费缓慢
 
 https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
-
 
 ## feature
 

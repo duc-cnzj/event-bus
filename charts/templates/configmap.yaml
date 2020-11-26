@@ -21,7 +21,7 @@ data:
     # redis
     RedisAddr: {{ default "localhost:6379" .Values.conf.RedisAddr }}
     RedisDB: {{ default "0" .Values.conf.RedisDB }}
-    RedisUsername: {{ default "" .Values.conf.RedisUsername | quote }}
+    RedisUsername: {{ default "" .Values.conf.RedisUsername }}
     RedisPassword: {{ default "" .Values.conf.RedisPassword  }}
 
     # cronjob
@@ -29,8 +29,12 @@ data:
     CronDelayPushEnabled: {{ default true .Values.conf.CronDelayPushEnabled }}
 
     # DATABASE
-    DB_HOST: {{ default "127.0.0.1" .Values.conf.DB_HOST |quote }}
-    DB_PORT: {{ default "3306" .Values.conf.DB_PORT |quote }}
-    DB_DATABASE: {{ default "mq" .Values.conf.DB_DATABASE |quote }}
-    DB_USERNAME: {{ default "root" .Values.conf.DB_USERNAME |quote }}
-    DB_PASSWORD: {{ default "" .Values.conf.DB_PASSWORD |quote }}
+    DB_HOST: {{ default "127.0.0.1" .Values.conf.DB_HOST }}
+    DB_PORT: {{ default "3306" .Values.conf.DB_PORT }}
+    DB_DATABASE: {{ default "mq" .Values.conf.DB_DATABASE }}
+    DB_USERNAME: {{ default "root" .Values.conf.DB_USERNAME }}
+    DB_PASSWORD: {{ default "" .Values.conf.DB_PASSWORD }}
+
+    EachQueueConsumerNum: {{ default "5" .Values.conf.EachQueueConsumerNum }}
+    EachQueueProducerNum: {{ default "2" .Values.conf.EachQueueProducerNum }}
+    BackConsumerNum: {{ default "10" .Values.conf.BackConsumerNum }}
