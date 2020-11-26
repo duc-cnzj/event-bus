@@ -10,9 +10,9 @@ type ConsumerInterface interface {
 	GetChannel() *amqp.Channel
 	GetQueueName() string
 	GetKind() string
-	Consume(ctx context.Context) (string, uint64, error)
-	Ack(uint64) error
-	Nack(uint64) error
+	Consume(ctx context.Context) (*Message, error)
+	Ack(string) error
+	Nack(string) error
 	Close()
 }
 

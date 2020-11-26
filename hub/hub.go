@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"gorm.io/gorm"
@@ -15,6 +16,10 @@ import (
 )
 
 var AmqpConnClosed = errors.New("amqp conn closed")
+var AckQueueName = "event_bus_ack_queue"
+var ConfirmQueueName = "event_bus_confirm_queue"
+
+var _ Interface = (*Hub)(nil)
 
 type atomicBool int32
 
@@ -23,6 +28,11 @@ func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
 func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type Interface interface {
+	GetConfirmProducer() (ProducerInterface, error)
+	GetConfirmConsumer() (ConsumerInterface, error)
+	GetAckQueueProducer() (ProducerInterface, error)
+	GetAckQueueConsumer() (ConsumerInterface, error)
+
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
 
@@ -97,6 +107,57 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	}()
 
 	return h
+}
+
+func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if consumer, err = h.ConsumerManager().GetConsumer(ConfirmQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	if producer, err = h.ProducerManager().GetProducer(ConfirmQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return producer, nil
+}
+func (h *Hub) GetAckQueueConsumer() (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if consumer, err = h.ConsumerManager().GetConsumer(AckQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func (h *Hub) GetAckQueueProducer() (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	if producer, err = h.ProducerManager().GetProducer(AckQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return producer, nil
 }
 
 func (h *Hub) AmqpConnDone() <-chan *amqp.Error {
@@ -221,58 +282,59 @@ func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
-func Ack(db *gorm.DB, queueId uint64) error {
-	if queueId == 0 {
-		log.Debug(queueId)
-		return nil
-	}
-	if err := db.Delete(&models.Queue{ID: uint(queueId)}).Error; err != nil {
+func Ack(db *gorm.DB, uniqueId string) error {
+	var queue  = &models.Queue{UniqueId: uniqueId}
+	if err := db.Find(queue).Error; err != nil {
 		return err
+	}
+
+	switch queue.Status {
+	case models.StatusNAcked:
+		return errors.New("already nacked")
+	case models.StatusAcked:
+	case models.StatusUnknown:
+		queue.Status = models.StatusAcked
+		db.Updates(queue)
 	}
 
 	return nil
 }
 
-func Nack(db *gorm.DB, queueId uint64) error {
-	if queueId == 0 {
-		log.Debug(queueId)
-		return nil
+func Nack(db *gorm.DB, uniqueId string) error {
+	var queue = &models.Queue{
+		UniqueId: uniqueId,
 	}
-	var queue = &models.Queue{ID: uint(queueId)}
-	if err := db.Find(&queue).Error; err != nil {
+	if err := db.Find(queue).Error; err != nil {
 		return err
 	}
 
-	now := time.Now()
+	switch queue.Status {
+	case models.StatusAcked:
+		return errors.New("already acked")
+	case models.StatusNAcked:
+	case models.StatusUnknown:
+		queue.Status = models.StatusNAcked
+		db.Updates(queue)
+	}
 
-	return db.Transaction(func(tx *gorm.DB) error {
-		tx.Delete(queue)
-
-		tx.Create(&models.Queue{
-			RetryTimes: queue.RetryTimes + 1,
-			Data:       queue.Data,
-			QueueName:  queue.QueueName,
-			Ref:        int(queue.ID),
-			RunAfter:   &now,
-		})
-		return nil
-	})
+	return nil
 }
 
-func DelayPublish(db *gorm.DB, queueName string, msg Message) (*models.Queue, error) {
+func DelayPublish(db *gorm.DB, queueName string, msg Message) (*models.DelayQueue, error) {
 	startTime := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
 
-	queue := &models.Queue{
-		DeletedAt:    gorm.DeletedAt{},
+	delayQueue := &models.DelayQueue{
+		UniqueId:     xid.New().String(),
 		RunAfter:     &startTime,
 		DelaySeconds: msg.DelaySeconds,
 		Data:         msg.Data,
 		QueueName:    queueName,
 	}
-	if err := db.Create(queue).Error; err != nil {
+
+	if err := db.Create(delayQueue).Error; err != nil {
 		return nil, err
 	}
 
-	log.Debug(queue)
-	return queue, nil
+	log.Debug(delayQueue)
+	return delayQueue, nil
 }

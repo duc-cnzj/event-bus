@@ -176,5 +176,5 @@ func LoadDB() {
 	// SetConnMaxLifetime 设置了连接可复用的最大时间。
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	db.AutoMigrate(&models.Queue{})
+	db.AutoMigrate(&models.DelayQueue{}, &models.Queue{})
 }

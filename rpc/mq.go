@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"errors"
+	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
@@ -25,32 +26,48 @@ func (m *MQ) NewConsumer(queueName string) (hub.ConsumerInterface, error) {
 	return m.Hub.NewConsumer(queueName, amqp.ExchangeDirect)
 }
 
+// DelayPublish 延迟推送
 func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq.Response, error) {
 	log.Debug("delay publish", req.Queue)
 	var (
-		queue *models.Queue
-		err   error
+		delayQueue *models.DelayQueue
+		err        error
 	)
-	if queue, err = hub.DelayPublish(m.Hub.GetDBConn(), req.Queue, hub.Message{
-		Data:         req.Data,
-		DelaySeconds: uint(req.Seconds),
-	}); err != nil {
+
+	if delayQueue, err = hub.DelayPublish(
+		m.Hub.GetDBConn(),
+		req.Queue,
+		hub.Message{
+			Data:         req.Data,
+			DelaySeconds: uint(req.Seconds),
+		},
+	); err != nil {
 		return nil, err
 	}
 
 	return &mq.Response{
 		Success:      true,
-		Data:         queue.Data,
-		Queue:        queue.QueueName,
-		Id:           uint64(queue.ID),
-		RunAfter:     queue.RunAfter.String(),
-		DelaySeconds: uint64(queue.DelaySeconds),
+		Data:         delayQueue.Data,
+		Queue:        delayQueue.QueueName,
+		Id:           delayQueue.UniqueId,
+		RunAfter:     delayQueue.RunAfter.String(),
+		DelaySeconds: uint64(delayQueue.DelaySeconds),
 	}, nil
 }
 
+// Ack 客户端确认已消费成功
 func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
 	log.Debug("Ack", queueId.Id)
-	if err := hub.Ack(m.Hub.GetDBConn(), queueId.Id); err != nil {
+	var (
+		queue hub.ProducerInterface
+		err   error
+	)
+
+	if queue, err = m.Hub.GetAckQueueProducer(); err != nil {
+		return nil, err
+	}
+
+	if err = queue.Publish(hub.Message{UniqueId: queueId.GetId()}); err != nil {
 		return nil, err
 	}
 
@@ -71,7 +88,10 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.Pub) (*mq.Response, error) {
 	if producer, err = m.NewProducer(pub.Queue); err != nil {
 		return nil, errors.New("server unavailable")
 	}
-	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
+	if err := producer.Publish(hub.Message{
+		UniqueId: xid.New().String(),
+		Data:     pub.Data,
+	}); err != nil {
 		return nil, err
 	}
 
@@ -86,22 +106,23 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.Sub) (*mq.Response, error) {
 	var (
 		consumer hub.ConsumerInterface
 		err      error
+		msg      *hub.Message
 	)
 	if consumer, err = m.NewConsumer(sub.Queue); err != nil {
 		return nil, status.Errorf(codes.Unavailable, "server unavailable")
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	data, id, err := consumer.Consume(ctx)
+	msg, err = consumer.Consume(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	return &mq.Response{
 		Success: true,
-		Data:    data,
+		Data:    msg.Data,
 		Queue:   sub.Queue,
-		Id:      id,
+		Id:      msg.UniqueId,
 	}, nil
 }
 

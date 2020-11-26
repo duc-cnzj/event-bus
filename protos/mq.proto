@@ -13,9 +13,9 @@ message Pub {
 
 message Response {
   bool success = 1;
-  string data = 2;
-  string queue = 3;
-  uint64 id = 4;
+  string id = 2;
+  string data = 3;
+  string queue = 4;
   string runAfter = 5;
   uint64 delaySeconds = 6;
 }
@@ -25,7 +25,7 @@ message Sub {
 }
 
 message QueueId {
-  uint64 id = 1;
+  string id = 1;
 }
 
 message DelayPublishRequest {

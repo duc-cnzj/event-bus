@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"mq/models"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -240,15 +239,15 @@ type DirectConsumer struct {
 	*ConsumerBase
 }
 
-func (d *DirectConsumer) Ack(id uint64) error {
-	if err := Ack(d.hub.GetDBConn(), id); err != nil {
+func (d *DirectConsumer) Ack(uniqueId string) error {
+	if err := Ack(d.hub.GetDBConn(), uniqueId); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *DirectConsumer) Nack(id uint64) error {
-	return Nack(d.hub.GetDBConn(), id)
+func (d *DirectConsumer) Nack(uniqueId string) error {
+	return Nack(d.hub.GetDBConn(), uniqueId)
 }
 
 func NewDirectConsumer(queueName string, hub Interface) ConsumerBuilder {
@@ -277,38 +276,34 @@ func (d *DirectConsumer) GetKind() string {
 	return d.kind
 }
 
-func (d *DirectConsumer) Consume(ctx context.Context) (string, uint64, error) {
+func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
+	var (
+		ackProducer ProducerInterface
+		err error
+	)
 	select {
 	case <-d.hub.Done():
 		log.Warn("hub done")
-		return "", 0, ServerUnavailable
+		return nil, ServerUnavailable
 	case <-d.hub.AmqpConnDone():
 		log.Warn("server amqp done")
-		return "", 0, ServerUnavailable
+		return nil, ServerUnavailable
 	case <-ctx.Done():
 		log.Warn("Consume client done")
-		return "", 0, errors.New("client done")
+		return nil, errors.New("client done")
 	case data, ok := <-d.delivery:
 		if ok {
 			msg := &Message{}
 			json.Unmarshal(data.Body, &msg)
-			now := time.Now()
-			if msg.RunAfter == nil {
-				msg.RunAfter = &now
+			if ackProducer, err = d.hub.GetConfirmProducer(); err!=nil {
+				return nil, err
 			}
-			sra := msg.RunAfter.Add(time.Second * time.Duration(d.hub.Config().MaxJobRunningSeconds))
-			queue := &models.Queue{
-				Data:       msg.Data,
-				QueueName:  d.GetQueueName(),
-				RetryTimes: msg.RetryTimes,
-				Ref:        msg.Ref,
-				RunAfter:   &sra,
-			}
-			d.hub.GetDBConn().Create(queue)
+			ackProducer.Publish(*msg)
 			data.Ack(false)
-			return msg.Data, uint64(queue.ID), nil
+
+			return msg, nil
 		}
-		return "", 0, ServerUnavailable
+		return nil, ServerUnavailable
 	}
 }
 

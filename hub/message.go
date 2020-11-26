@@ -11,6 +11,7 @@ type MessageInterface interface {
 }
 
 type Message struct {
+	UniqueId     string
 	Data         string     `json:"data"`
 	RetryTimes   int        `json:"retry_times"`
 	Ref          int        `json:"ref"`

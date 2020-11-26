@@ -18,6 +18,10 @@ https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
 
 ![v1 event-bus](./images/event-bus-v1.png)
 
+## v2 架构
+
+![v2 event-bus](./images/event-bus-v2.png)
+
 ## Usage
 
 ```shell script

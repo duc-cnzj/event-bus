@@ -5,16 +5,27 @@ import (
 	"time"
 )
 
-type Queue struct {
-	ID           uint `gorm:"primarykey"`
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	DeletedAt    gorm.DeletedAt `gorm:"index;index:deleted_at_delay_seconds_index;index:deleted_at_retry_times_delay_seconds_index;"`
-	RetryTimes   int            `json:"retry_times" gorm:"not null;default:0;index:deleted_at_retry_times_delay_seconds_index;"`
-	DelaySeconds uint           `json:"delay_seconds" gorm:"not null;default:0;index:deleted_at_delay_seconds_index;index:deleted_at_retry_times_delay_seconds_index;"`
+const (
+	StatusUnknown = iota
+	StatusAcked
+	StatusNAcked
+)
 
-	Data      string     `json:"data" gorm:"not null;"`
-	QueueName string     `json:"queue_name" gorm:"not null;"`
-	Ref       int        `json:"ref" gorm:"not null;default:0;"`
-	RunAfter  *time.Time `json:"run_after" gorm:"nullable;"`
+type Queue struct {
+	ID uint `gorm:"primarykey"`
+
+	UniqueId string `json:"unique_id" gorm:"not null;index:unique_id_idx,unique;"`
+
+	Status       uint
+	RetryTimes   int    `json:"retry_times" gorm:"default:0;"`
+	Data         string `json:"data"`
+	QueueName    string `json:"queue_name"`
+	Ref          int    `json:"ref" gorm:"default:0;"`
+	DelayQueueId int    `json:"delay_queue_id" gorm:"default:0;"`
+
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt
+
+	DelayQueue DelayQueue `gorm:"foreignKey:delay_queue_id;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
