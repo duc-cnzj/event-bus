@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/rs/xid"
 	"time"
+
+	"github.com/rs/xid"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -323,7 +324,6 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		if ok {
 			msg := &Message{}
 			json.Unmarshal(data.Body, &msg)
-			log.Error(msg)
 			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
 				return nil, err
 			}
@@ -357,6 +357,10 @@ func (d *DirectConsumer) PrepareDelivery() error {
 }
 
 func (d *DirectConsumer) PrepareQos() error {
+	if d.hub.Config().PrefetchCount == 0 {
+		return nil
+	}
+
 	if err := d.channel.Qos(
 		d.hub.Config().PrefetchCount, // prefetch count
 		0,                            // prefetch size
