@@ -14,6 +14,10 @@ https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
 5. 高性能
 6. 断线重连(60s)
 
+## v1 架构
+
+![v1 event-bus](./images/event-bus-v1.png)
+
 ## Usage
 
 ```shell script
