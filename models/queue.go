@@ -17,7 +17,6 @@ type Queue struct {
 	RetryTimes int    `json:"retry_times" gorm:"default:0;"`
 	Data       string `json:"data"`
 	QueueName  string `json:"queue_name"`
-	Ref        int    `json:"ref" gorm:"default:0;"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

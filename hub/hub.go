@@ -189,7 +189,6 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 					ConfirmedAt: &now,
 					Data:        msg.Data,
 					QueueName:   msg.QueueName,
-					Ref:         msg.Ref,
 				})
 			}
 		} else {
@@ -211,7 +210,6 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			ConfirmedAt: &now,
 			Data:        msg.Data,
 			QueueName:   msg.QueueName,
-			Ref:         msg.Ref,
 		})
 	}
 }
