@@ -3,8 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
-
 	"github.com/spf13/cobra"
+	"github.com/streadway/amqp"
 
 	"mq/conn"
 	"mq/hub"
@@ -36,32 +36,24 @@ var produceCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		ctx, cancel := context.WithCancel(context.Background())
+		_, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		h := hub.NewHub(mqConn, cfg, db)
+		h.Config().EachQueueProducerNum = int64(testProducerNum)
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
-		for i := 0; i < testProducerNum; i++ {
-			go func(i int) {
-				producer, _ := hub.NewDirectProducer(testQueueName, h).Build()
-				if err != nil {
-					log.Fatal(err)
-				}
-				defer producer.Close()
-				go func() {
-					for {
-						producer.Publish(hub.Message{
-							Data: fmt.Sprintf("data to test queue by %d\n", i),
-						})
-					}
-				}()
+		go func() {
+			for {
 				select {
-				case <-ctx.Done():
-				case <-h.AmqpConnDone():
 				case <-h.Done():
+					return
+				default:
+					producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
+					producer.Publish(hub.Message{
+						Data: fmt.Sprintf("data to test queue by %d\n", producer.GetId()),
+					})
 				}
-				log.Infof("producer %d exit", i)
-			}(i)
-		}
+			}
+		}()
 
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)

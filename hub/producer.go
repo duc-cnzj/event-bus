@@ -5,6 +5,7 @@ import (
 )
 
 type ProducerInterface interface {
+	GetId() int64
 	GetConn() *amqp.Connection
 	GetChannel() *amqp.Channel
 	GetQueueName() string
@@ -14,6 +15,7 @@ type ProducerInterface interface {
 }
 
 type ProducerBase struct {
+	id        int64
 	pm        ProducerManagerInterface
 	queueName string
 	queue     amqp.Queue

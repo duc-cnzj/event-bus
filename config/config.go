@@ -38,4 +38,7 @@ type Config struct {
 	DBDatabase string
 	DBUsername string
 	DBPassword string
+
+	EachQueueProducerNum int64
+	EachQueueConsumerNum int64
 }

@@ -19,8 +19,9 @@ type DirectProducer struct {
 	*ProducerBase
 }
 
-func NewDirectProducer(queueName string, hub Interface) ProducerBuilder {
+func NewDirectProducer(queueName string, hub Interface, id int64) ProducerBuilder {
 	d := &DirectProducer{ProducerBase: &ProducerBase{
+		id:        id,
 		pm:        hub.ProducerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,
@@ -31,6 +32,10 @@ func NewDirectProducer(queueName string, hub Interface) ProducerBuilder {
 	return d
 }
 
+func (d *DirectProducer) GetId() int64 {
+	return d.id
+}
+
 func (d *DirectProducer) Publish(message Message) error {
 	if message.QueueName == "" {
 		message.QueueName = d.GetQueueName()
@@ -39,20 +44,30 @@ func (d *DirectProducer) Publish(message Message) error {
 		message.UniqueId = xid.New().String()
 	}
 	marshal, err := json.Marshal(&message)
+
 	if err != nil {
 		return err
 	}
 
-	return d.channel.Publish(
-		d.exchange,
-		d.queueName,
-		false,
-		false,
-		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        marshal,
-		},
-	)
+	select {
+	case <-d.Done():
+		return ServerUnavailable
+	case <-d.hub.AmqpConnDone():
+		return ServerUnavailable
+	case <-d.hub.Done():
+		return ServerUnavailable
+	default:
+		return d.channel.Publish(
+			d.exchange,
+			d.queueName,
+			false,
+			false,
+			amqp.Publishing{
+				ContentType: "application/json",
+				Body:        marshal,
+			},
+		)
+	}
 }
 
 func (d *DirectProducer) Done() chan *amqp.Error {
@@ -249,12 +264,17 @@ func (d *DirectConsumer) Ack(uniqueId string) error {
 	return nil
 }
 
+func (d *DirectConsumer) GetId() int64 {
+	return d.id
+}
+
 func (d *DirectConsumer) Nack(uniqueId string) error {
 	return Nack(d.hub.GetDBConn(), uniqueId)
 }
 
-func NewDirectConsumer(queueName string, hub Interface) ConsumerBuilder {
+func NewDirectConsumer(queueName string, hub Interface, id int64) ConsumerBuilder {
 	return &DirectConsumer{ConsumerBase: &ConsumerBase{
+		id:        id,
 		cm:        hub.ConsumerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,

@@ -18,12 +18,15 @@ RedisUsername:
 RedisPassword:
 
 # cronjob
-CronRepublishEnabled: true
-CronDelayPushEnabled: true
+CronRepublishEnabled: false
+CronDelayPushEnabled: false
 
 # DATABASE
 DB_HOST: 127.0.0.1
 DB_PORT: 3306
-DB_DATABASE: mq
+DB_DATABASE: mq_v2
 DB_USERNAME: root
 DB_PASSWORD:
+
+EachQueueConsumerNum: 5
+EachQueueProducerNum: 2

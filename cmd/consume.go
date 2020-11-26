@@ -2,14 +2,14 @@ package cmd
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/streadway/amqp"
 	"mq/conn"
 	"mq/hub"
 	"os"
 	"os/signal"
 	"syscall"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 )
 
 var testConsumerNum int
@@ -38,28 +38,20 @@ var consumeCmd = &cobra.Command{
 		}()
 
 		h := hub.NewHub(mqConn, cfg, db)
+		h.Config().EachQueueConsumerNum = int64(testConsumerNum)
 		log.Infof("consumer num: %d queue %s", testConsumerNum, testQueueName)
 
-		for i := 0; i < testConsumerNum; i++ {
-			go func(i int) {
-				consumer, err := hub.NewDirectConsumer(testQueueName, h).Build()
-				if err != nil {
-					log.Fatal(err)
-				}
-				defer consumer.Close()
-				go func() {
-					for {
-						consumer.Consume(ctx)
-					}
-				}()
+		go func() {
+			for {
 				select {
-				case <-ctx.Done():
-				case <-h.AmqpConnDone():
 				case <-h.Done():
+					return
+				default:
+					consumer, _ := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
+					consumer.Consume(ctx)
 				}
-				log.Infof("consumer %d exit", i)
-			}(i)
-		}
+			}
+		}()
 
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)

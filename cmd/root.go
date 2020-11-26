@@ -97,6 +97,8 @@ func initConfig() {
 		RedisPassword:        viper.GetString("RedisPassword"),
 		RedisUsername:        viper.GetString("RedisUsername"),
 		RedisDB:              viper.GetInt("RedisDB"),
+		EachQueueConsumerNum: viper.GetInt64("EachQueueConsumerNum"),
+		EachQueueProducerNum: viper.GetInt64("EachQueueProducerNum"),
 	}
 	printConfig()
 	if cfg.Debug {
@@ -133,6 +135,8 @@ func printConfig() {
 	log.Warnf(f, "REDIS_USERNAME", cfg.RedisUsername)
 	log.Warnf(f, "REDIS_PASSWORD", cfg.RedisPassword)
 	log.Warnf(f, "REDIS_DB", cfg.RedisDB)
+	log.Warnf(f, "EachQueueConsumerNum", cfg.EachQueueConsumerNum)
+	log.Warnf(f, "EachQueueProducerNum", cfg.EachQueueProducerNum)
 	log.Warn(padding)
 }
 

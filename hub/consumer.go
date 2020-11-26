@@ -6,6 +6,7 @@ import (
 )
 
 type ConsumerInterface interface {
+	GetId() int64
 	GetConn() *amqp.Connection
 	GetChannel() *amqp.Channel
 	GetQueueName() string
@@ -19,6 +20,7 @@ type ConsumerInterface interface {
 }
 
 type ConsumerBase struct {
+	id        int64
 	queueName string
 	cm        ConsumerManagerInterface
 	queue     amqp.Queue

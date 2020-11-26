@@ -1,8 +1,10 @@
 package hub
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
+	"mq/lb"
 	"sync"
 )
 
@@ -26,34 +28,45 @@ func NewProducerManager(hub *Hub) *ProducerManager {
 
 func (pm *ProducerManager) GetProducer(queueName, kind string) (ProducerInterface, error) {
 	var (
-		ok       bool
-		producer ProducerInterface
-		err      error
+		one *lb.Item
+		err error
 	)
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
 	key := pm.getKey(queueName, kind)
-	if producer, ok = pm.getProducerIfHas(key); ok {
-		return producer, nil
-	}
 
-	switch kind {
-	case amqp.ExchangeDirect:
-		if producer, err = NewDirectProducer(queueName, pm.hub).Build(); err != nil {
-			log.Error(err)
+	if load, ok := pm.producers.Load(key); ok {
+		if item, err := load.(lb.LoadBalancerInterface).Get(); err != nil {
 			return nil, err
+		} else {
+			return item.Instance().(ProducerInterface), nil
 		}
-		pm.producers.Store(key, producer)
-
-		return producer, nil
-	default:
-		panic("err")
 	}
+
+	loadBalancer := lb.NewLoadBalancer(pm.hub.Config().EachQueueProducerNum, func(id int64) (interface{}, error) {
+		switch kind {
+		case amqp.ExchangeDirect:
+			return NewDirectProducer(queueName, pm.hub, id).Build()
+		default:
+			return nil, errors.New("unsupport kind: " + kind)
+		}
+	})
+
+	pm.producers.Store(key, loadBalancer)
+
+	if one, err = loadBalancer.Get(); err != nil {
+		return nil, err
+	}
+
+	return one.Instance().(ProducerInterface), nil
+
 }
 
 func (pm *ProducerManager) RemoveProducer(p ProducerInterface) {
-	pm.producers.Delete(pm.getKey(p.GetQueueName(), p.GetKind()))
+	if load, ok := pm.producers.Load(pm.getKey(p.GetQueueName(), p.GetKind())); ok {
+		load.(lb.LoadBalancerInterface).Remove(p.GetId())
+	}
 }
 
 func (pm *ProducerManager) CloseAll() {
@@ -62,10 +75,12 @@ func (pm *ProducerManager) CloseAll() {
 
 	pm.producers.Range(func(key, value interface{}) bool {
 		wg.Add(1)
-		p := value.(ProducerInterface)
+		defer wg.Done()
+		p := value.(lb.LoadBalancerInterface)
 		go func() {
-			defer wg.Done()
-			p.Close()
+			p.RemoveAll(func(key int64, instance interface{}) {
+				instance.(ProducerInterface).Close()
+			})
 		}()
 		return true
 	})
@@ -126,33 +141,43 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 	defer cm.mu.Unlock()
 
 	var (
-		ok       bool
-		err      error
-		consumer ConsumerInterface
+		one *lb.Item
+		err error
 	)
 
 	key := cm.getKey(queueName, kind)
 
-	if consumer, ok = cm.getConsumerIfHas(key); ok {
-		return consumer, nil
-	}
-
-	switch kind {
-	case amqp.ExchangeDirect:
-		if consumer, err = NewDirectConsumer(queueName, cm.hub).Build(); err != nil {
+	if load, ok := cm.consumers.Load(key); ok {
+		if one, err = load.(lb.LoadBalancerInterface).Get(); err != nil {
 			return nil, err
+		} else {
+			return one.Instance().(ConsumerInterface), nil
 		}
-
-		cm.consumers.Store(key, consumer)
-
-		return consumer, nil
-	default:
-		panic("err")
 	}
+	log.Error(cm.hub.Config().EachQueueConsumerNum)
+	loadBalancer := lb.NewLoadBalancer(cm.hub.Config().EachQueueConsumerNum, func(id int64) (interface{}, error) {
+		switch kind {
+		case amqp.ExchangeDirect:
+			log.Error("new consumer ", id)
+			return NewDirectConsumer(queueName, cm.hub, id).Build()
+		default:
+			return nil, errors.New("unsupport kind: " + kind)
+		}
+	})
+
+	cm.consumers.Store(key, loadBalancer)
+
+	if one, err = loadBalancer.Get(); err != nil {
+		return nil, err
+	}
+
+	return one.Instance().(ConsumerInterface), nil
 }
 
 func (cm *ConsumerManager) RemoveConsumer(c ConsumerInterface) {
-	cm.consumers.Delete(cm.getKey(c.GetQueueName(), c.GetKind()))
+	if load, ok := cm.consumers.Load(cm.getKey(c.GetQueueName(), c.GetKind())); ok {
+		load.(lb.LoadBalancerInterface).Remove(c.GetId())
+	}
 }
 
 func (cm *ConsumerManager) CloseAll() {
@@ -162,11 +187,12 @@ func (cm *ConsumerManager) CloseAll() {
 
 	cm.consumers.Range(func(key, value interface{}) bool {
 		wg.Add(1)
-		c := value.(ConsumerInterface)
-		go func() {
-			defer wg.Done()
-			c.Close()
-		}()
+		defer wg.Done()
+		value.(lb.LoadBalancerInterface).RemoveAll(func(i int64, instance interface{}) {
+			go func() {
+				instance.(ConsumerInterface).Close()
+			}()
+		})
 		return true
 	})
 
