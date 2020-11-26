@@ -49,6 +49,9 @@ var serveCmd = &cobra.Command{
 		}
 		h := hub.NewHub(mqConn, cfg, db)
 
+		go h.ConsumeConfirmQueue()
+		go h.ConsumeAckQueue()
+
 		cr := runCron(h)
 
 		runHttp(h)

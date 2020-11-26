@@ -6,10 +6,6 @@ import (
 	"sync"
 )
 
-type Closeable interface {
-	Done() chan *amqp.Error
-}
-
 type ProducerManagerInterface interface {
 	GetProducer(queueName, kind string) (ProducerInterface, error)
 	RemoveProducer(p ProducerInterface)
@@ -61,6 +57,7 @@ func (pm *ProducerManager) RemoveProducer(p ProducerInterface) {
 }
 
 func (pm *ProducerManager) CloseAll() {
+	log.Warn("start close all producers.")
 	wg := sync.WaitGroup{}
 
 	pm.producers.Range(func(key, value interface{}) bool {
@@ -74,6 +71,7 @@ func (pm *ProducerManager) CloseAll() {
 	})
 
 	wg.Wait()
+	log.Warn("end close all producers.")
 }
 
 func (pm *ProducerManager) Count() int {
@@ -158,6 +156,8 @@ func (cm *ConsumerManager) RemoveConsumer(c ConsumerInterface) {
 }
 
 func (cm *ConsumerManager) CloseAll() {
+	log.Warn("start close all consumers.")
+
 	wg := sync.WaitGroup{}
 
 	cm.consumers.Range(func(key, value interface{}) bool {
@@ -171,6 +171,8 @@ func (cm *ConsumerManager) CloseAll() {
 	})
 
 	wg.Wait()
+	log.Warn("end close all consumers.")
+
 }
 
 func (cm *ConsumerManager) Count() int {

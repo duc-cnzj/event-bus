@@ -3,7 +3,6 @@ package rpc
 import (
 	"context"
 	"errors"
-	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"google.golang.org/grpc/codes"
@@ -88,10 +87,7 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.Pub) (*mq.Response, error) {
 	if producer, err = m.NewProducer(pub.Queue); err != nil {
 		return nil, errors.New("server unavailable")
 	}
-	if err := producer.Publish(hub.Message{
-		UniqueId: xid.New().String(),
-		Data:     pub.Data,
-	}); err != nil {
+	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
 		return nil, err
 	}
 

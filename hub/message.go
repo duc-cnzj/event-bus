@@ -17,6 +17,7 @@ type Message struct {
 	Ref          int        `json:"ref"`
 	RunAfter     *time.Time `json:"run_after"`
 	DelaySeconds uint       `json:"delay_seconds"`
+	QueueName    string     `json:"queue_name"`
 }
 
 func (m *Message) GetData() string {

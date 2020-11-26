@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/rs/xid"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -31,6 +32,12 @@ func NewDirectProducer(queueName string, hub Interface) ProducerBuilder {
 }
 
 func (d *DirectProducer) Publish(message Message) error {
+	if message.QueueName == "" {
+		message.QueueName = d.GetQueueName()
+	}
+	if message.UniqueId == "" {
+		message.UniqueId = xid.New().String()
+	}
 	marshal, err := json.Marshal(&message)
 	if err != nil {
 		return err
@@ -218,21 +225,17 @@ func (d *DirectProducer) Close() {
 		log.Infof("producer %s already closed.", d.GetQueueName())
 		return
 	}
-	d.closed.setTrue()
+	d.RemoveSelf()
 	select {
 	case <-d.Done():
-		log.Info("producer exit when d.Done()")
 	case <-d.hub.AmqpConnDone():
-		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
-		}
 	default:
-		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
-		}
 	}
-	d.RemoveSelf()
+	if err := d.channel.Close(); err != nil {
+		log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+	}
 	log.Infof("####### producer closed %s #######", d.GetQueueName())
+	d.closed.setTrue()
 }
 
 type DirectConsumer struct {
@@ -260,6 +263,10 @@ func NewDirectConsumer(queueName string, hub Interface) ConsumerBuilder {
 	}}
 }
 
+func (d *DirectConsumer) Delivery() <-chan amqp.Delivery {
+	return d.delivery
+}
+
 func (d *DirectConsumer) GetConn() *amqp.Connection {
 	return d.conn
 }
@@ -276,10 +283,14 @@ func (d *DirectConsumer) GetKind() string {
 	return d.kind
 }
 
+func (d *DirectConsumer) RemoveSelf() {
+	d.cm.RemoveConsumer(d)
+}
+
 func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	var (
 		ackProducer ProducerInterface
-		err error
+		err         error
 	)
 	select {
 	case <-d.hub.Done():
@@ -295,7 +306,7 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		if ok {
 			msg := &Message{}
 			json.Unmarshal(data.Body, &msg)
-			if ackProducer, err = d.hub.GetConfirmProducer(); err!=nil {
+			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
 				return nil, err
 			}
 			ackProducer.Publish(*msg)
@@ -483,21 +494,17 @@ func (d *DirectConsumer) Close() {
 		log.Infof("consumer %s is already closed.", d.GetQueueName())
 		return
 	}
-	d.closed.setTrue()
+	d.RemoveSelf()
 	select {
 	case <-d.hub.AmqpConnDone():
-		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
-		}
-		//log.Warn("consumer closing but amqp conn done.")
 	case <-d.Done():
-		//log.Info("consumer closeChan done.")
 	default:
-		if err := d.channel.Close(); err != nil {
-			log.Errorf("Close channel err %v %s", err, d.GetQueueName())
-		}
 	}
-	d.cm.RemoveConsumer(d)
+
+	if err := d.channel.Close(); err != nil {
+		log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+	}
 
 	log.Info("after consumer close ", d.GetQueueName())
+	d.closed.setTrue()
 }

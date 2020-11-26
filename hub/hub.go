@@ -3,11 +3,13 @@ package hub
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"mq/config"
 	conn2 "mq/conn"
 	"mq/models"
@@ -28,8 +30,12 @@ func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
 func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type Interface interface {
+	ConsumeConfirmQueue()
+	ConsumeAckQueue()
+
 	GetConfirmProducer() (ProducerInterface, error)
 	GetConfirmConsumer() (ConsumerInterface, error)
+
 	GetAckQueueProducer() (ProducerInterface, error)
 	GetAckQueueConsumer() (ConsumerInterface, error)
 
@@ -99,6 +105,8 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				log.Error("amqp 开始重连")
 				h.amqpConn = conn2.ReConnect(h.Config().AmqpUrl)
 				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
+				go h.ConsumeConfirmQueue()
+				go h.ConsumeAckQueue()
 			case <-h.ctx.Done():
 				log.Info("hub ctx Done exit")
 				return
@@ -107,6 +115,142 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	}()
 
 	return h
+}
+
+func (h *Hub) ConsumeConfirmQueue() {
+	var (
+		err      error
+		consumer ConsumerInterface
+	)
+
+	defer func() {
+		log.Error("ConsumeConfirmQueue EXIT")
+	}()
+
+	if consumer, err = h.GetConfirmConsumer(); err != nil {
+		log.Error("err ConsumeConfirmQueue()", err)
+		return
+	}
+
+	defer consumer.Close()
+
+	for {
+		select {
+		case <-consumer.Done():
+			return
+		case <-h.Done():
+			log.Error("hub done ConsumeConfirmQueue exit.")
+			return
+		case <-h.AmqpConnDone():
+			log.Error("amqp conn done.")
+			return
+		case delivery, ok := <-consumer.Delivery():
+			if !ok {
+				log.Error("not ok")
+				return
+			}
+
+			handle(h.GetDBConn(), delivery, false)
+		}
+	}
+}
+
+func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
+	defer delivery.Ack(false)
+	var (
+		msg = &Message{}
+		err error
+		now = time.Now()
+	)
+	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+		log.Error(err)
+		return
+	}
+	var queue = &models.Queue{
+		UniqueId: msg.UniqueId,
+	}
+	if err = db.Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if ackMsg {
+				db.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "unique_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
+				}).Create(&models.Queue{
+					UniqueId: msg.UniqueId,
+					AckedAt:  &now,
+				})
+			} else {
+				db.Clauses(clause.OnConflict{
+					Columns:   []clause.Column{{Name: "unique_id"}},
+					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref"}),
+				}).Create(&models.Queue{
+					UniqueId:    msg.UniqueId,
+					RetryTimes:  msg.RetryTimes,
+					ConfirmedAt: &now,
+					Data:        msg.Data,
+					QueueName:   msg.QueueName,
+					Ref:         msg.Ref,
+				})
+			}
+		} else {
+			log.Error(err)
+		}
+		return
+	}
+
+	if queue.NAcked() {
+		log.Warn("queue status", queue.NAckedAt)
+		return
+	}
+
+	if ackMsg {
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &now})
+	} else {
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+			RetryTimes:  msg.RetryTimes,
+			ConfirmedAt: &now,
+			Data:        msg.Data,
+			QueueName:   msg.QueueName,
+			Ref:         msg.Ref,
+		})
+	}
+}
+
+func (h *Hub) ConsumeAckQueue() {
+	var (
+		err      error
+		consumer ConsumerInterface
+	)
+
+	defer func() {
+		log.Error("ConsumeAckQueue EXIT")
+	}()
+
+	if consumer, err = h.GetAckQueueConsumer(); err != nil {
+		log.Error("err GetAckQueueConsumer()", err)
+		return
+	}
+	defer consumer.Close()
+
+	for {
+		select {
+		case <-consumer.Done():
+			return
+		case <-h.Done():
+			log.Error("hub done ConsumeAckQueue exit.")
+			return
+		case <-h.AmqpConnDone():
+			log.Error("amqp conn done.")
+			return
+		case delivery, ok := <-consumer.Delivery():
+			if !ok {
+				log.Error("not ok")
+				return
+			}
+
+			handle(h.GetDBConn(), delivery, true)
+		}
+	}
 }
 
 func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
@@ -134,6 +278,7 @@ func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
 
 	return producer, nil
 }
+
 func (h *Hub) GetAckQueueConsumer() (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
@@ -283,19 +428,22 @@ func (h *Hub) Config() *config.Config {
 }
 
 func Ack(db *gorm.DB, uniqueId string) error {
-	var queue  = &models.Queue{UniqueId: uniqueId}
+	var queue = &models.Queue{UniqueId: uniqueId}
+	now := time.Now()
 	if err := db.Find(queue).Error; err != nil {
 		return err
 	}
 
-	switch queue.Status {
-	case models.StatusNAcked:
+	if queue.NAcked() {
 		return errors.New("already nacked")
-	case models.StatusAcked:
-	case models.StatusUnknown:
-		queue.Status = models.StatusAcked
-		db.Updates(queue)
 	}
+
+	if queue.Acked() {
+		return nil
+	}
+
+	queue.AckedAt = &now
+	db.Updates(queue)
 
 	return nil
 }
@@ -304,18 +452,20 @@ func Nack(db *gorm.DB, uniqueId string) error {
 	var queue = &models.Queue{
 		UniqueId: uniqueId,
 	}
+	now := time.Now()
 	if err := db.Find(queue).Error; err != nil {
 		return err
 	}
 
-	switch queue.Status {
-	case models.StatusAcked:
+	if queue.Acked() {
 		return errors.New("already acked")
-	case models.StatusNAcked:
-	case models.StatusUnknown:
-		queue.Status = models.StatusNAcked
-		db.Updates(queue)
 	}
+
+	if queue.NAcked() {
+		return nil
+	}
+	queue.NAckedAt = &now
+	db.Updates(queue)
 
 	return nil
 }
