@@ -183,6 +183,8 @@ func (d *DirectProducer) PrepareQueueBind() error {
 }
 
 func (d *DirectProducer) Build() (ProducerInterface, error) {
+	log.Infof("start build producer %s.", d.queueName)
+
 	var (
 		err error
 	)
@@ -243,7 +245,7 @@ func (d *DirectProducer) Close() {
 	default:
 	}
 	if err := d.channel.Close(); err != nil {
-		log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+		log.Debugf("Close channel err %v %s", err, d.GetQueueName())
 	}
 	log.Infof("####### PRODUCER CLOSED queue: %s id: %d #######", d.GetQueueName(), d.GetId())
 	d.closed.setTrue()
@@ -464,6 +466,7 @@ func (d *DirectConsumer) ChannelDone() chan *amqp.Error {
 }
 
 func (d *DirectConsumer) Build() (ConsumerInterface, error) {
+	log.Infof("start build consumer %s.", d.queueName)
 	var (
 		err error
 	)
@@ -534,10 +537,10 @@ func (d *DirectConsumer) Close() {
 	}
 
 	if err := d.channel.Close(); err != nil {
-		log.Errorf("Close channel err %v %s", err, d.GetQueueName())
+		log.Debugf("Close channel err %v %s", err, d.GetQueueName())
 	}
 
-	log.Info("############ CONSUMER CLOSED queue: % id: %d ############", d.GetQueueName(), d.GetId())
+	log.Infof("############ CONSUMER CLOSED queue: %s id: %d ############", d.GetQueueName(), d.GetId())
 	d.closed.setTrue()
 }
 

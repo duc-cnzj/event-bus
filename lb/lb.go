@@ -48,6 +48,8 @@ func (l *LoadBalancer) Count() int {
 func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	atomic.StoreInt64(&l.current, -1)
+
 	wg := sync.WaitGroup{}
 	wg.Add(len(l.lists))
 	for _, list := range l.lists {
@@ -58,6 +60,8 @@ func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {
 	}
 
 	wg.Wait()
+
+	l.lists = nil
 }
 
 func NewLoadBalancer(total int64, new func(id int64) (interface{}, error)) *LoadBalancer {
@@ -69,18 +73,19 @@ func (l *LoadBalancer) Get() (*Item, error) {
 		err    error
 		newOne interface{}
 	)
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
 	current := atomic.AddInt64(&l.current, 1)
 	next := current % l.total
-
-	l.mu.Lock()
-	defer l.mu.Unlock()
 
 	if int64(len(l.lists)-1) >= next {
 		return l.lists[next], nil
 	}
 
 	if newOne, err = l.new(current); err != nil {
+		atomic.AddInt64(&l.current, -1)
+
 		return nil, err
 	}
 
@@ -98,6 +103,11 @@ func (l *LoadBalancer) Remove(id int64) {
 	for index, list := range l.lists {
 		if list.id == id {
 			l.lists = append(l.lists[0:index], l.lists[index+1:]...)
+			if int(l.current%l.total) == index && l.current > -1 {
+				atomic.AddInt64(&l.current, -1)
+			} else {
+				atomic.StoreInt64(&l.current, -1)
+			}
 			return
 		}
 	}

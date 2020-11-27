@@ -172,6 +172,7 @@ func (h *Hub) ConsumeConfirmQueue() {
 	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
 		go h.consumeConfirmQueue()
 	}
+	log.Infof("back consume confirm queue started.")
 }
 
 func (h *Hub) consumeConfirmQueue() {
@@ -215,6 +216,7 @@ func (h *Hub) ConsumeAckQueue() {
 	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
 		go h.consumeAckQueue()
 	}
+	log.Infof("back consume ack queue started.")
 }
 
 func (h *Hub) consumeAckQueue() {
@@ -407,9 +409,15 @@ func (h *Hub) Close() {
 		h.CloseAllConsumer()
 
 		log.Info("hub amqp conn closing.")
-		if err = h.amqpConn.Close(); err != nil {
-			log.Error(err)
-		}
+		timeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancelFunc()
+		go func() {
+			if err = h.amqpConn.Close(); err != nil {
+				log.Error(err)
+			}
+		}()
+		log.Info("wait amqp conn done....")
+		<-timeout.Done()
 		log.Info("hub amqp conn closed.")
 	}
 

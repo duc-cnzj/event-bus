@@ -26,7 +26,7 @@ func TestNewLoadBalancer(t *testing.T) {
 			mu.Unlock()
 		}()
 	}
-	wg.Wait()
+	fmt.Println(result)
 	for _, n := range result {
 		if n != num/10 {
 			t.Errorf("error expect %d got %d", num/10, n)
@@ -54,6 +54,32 @@ func TestLoadBalancer_Remove(t *testing.T) {
 
 	for _, list := range lb.lists {
 		fmt.Println(list)
+	}
+}
+
+func TestLoadBalancer_RemoveWithCallbackError(t *testing.T) {
+	lb := NewLoadBalancer(10, func(id int64) (interface{}, error) {
+		return "get " + strconv.Itoa(int(id)), nil
+	})
+
+	for i := 0; i < 10; i++ {
+		lb.Get()
+	}
+
+	if lb.current != 9 {
+		t.Errorf("want 9 got %d", lb.current)
+	}
+	lb.Remove(9)
+
+	if lb.current != 8 {
+		t.Errorf("want 10 got %d", lb.current)
+	}
+	for i := 0; i < 10; i++ {
+		lb.Get()
+	}
+
+	if len(lb.lists) != 10 {
+		t.Errorf("want 10 got %d", len(lb.lists))
 	}
 }
 
