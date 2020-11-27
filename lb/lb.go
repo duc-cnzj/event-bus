@@ -5,10 +5,14 @@ import (
 	"sync/atomic"
 )
 
+var _ LoadBalancerInterface = (*LoadBalancer)(nil)
+
 type LoadBalancerInterface interface {
 	Get() (*Item, error)
+	Count() int
 	Remove(id int64)
 	RemoveAll(func(int64, interface{}))
+	Range(fn func(key int, item *Item))
 }
 
 type Item struct {
@@ -26,6 +30,19 @@ type LoadBalancer struct {
 	lists   []*Item
 	current int64
 	mu      sync.RWMutex
+}
+
+func (l *LoadBalancer) Range(fn func(key int, item *Item)) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	for key, list := range l.lists {
+		fn(key, list)
+	}
+}
+
+func (l *LoadBalancer) Count() int {
+	return len(l.lists)
 }
 
 func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {

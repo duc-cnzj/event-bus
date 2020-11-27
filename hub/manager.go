@@ -6,6 +6,7 @@ import (
 	"github.com/streadway/amqp"
 	"mq/lb"
 	"sync"
+	"sync/atomic"
 )
 
 type ProducerManagerInterface interface {
@@ -90,18 +91,22 @@ func (pm *ProducerManager) CloseAll() {
 }
 
 func (pm *ProducerManager) Count() int {
-	count := 0
+	var count int64 = 0
+
 	pm.producers.Range(func(key, value interface{}) bool {
-		count++
+		atomic.AddInt64(&count, int64(value.(lb.LoadBalancerInterface).Count()))
 		return true
 	})
-	return count
+
+	return int(atomic.LoadInt64(&count))
 }
 
 func (pm *ProducerManager) Print() {
 	pm.producers.Range(func(key, value interface{}) bool {
-		p := value.(ProducerInterface)
-		log.Warnf("key %s queue %v %v", key, p.GetQueueName(), p.GetQueueName())
+		value.(lb.LoadBalancerInterface).Range(func(key int, item *lb.Item) {
+			p := item.Instance().(ProducerInterface)
+			log.Warnf("key %d queue %s id %d", key, p.GetQueueName(), p.GetId())
+		})
 		return true
 	})
 }
@@ -158,7 +163,6 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 	loadBalancer := lb.NewLoadBalancer(cm.hub.Config().EachQueueConsumerNum, func(id int64) (interface{}, error) {
 		switch kind {
 		case amqp.ExchangeDirect:
-			log.Error("new consumer ", id)
 			return NewDirectConsumer(queueName, cm.hub, id).Build()
 		default:
 			return nil, errors.New("unsupport kind: " + kind)
@@ -202,18 +206,22 @@ func (cm *ConsumerManager) CloseAll() {
 }
 
 func (cm *ConsumerManager) Count() int {
-	count := 0
+	var count int64 = 0
+
 	cm.consumers.Range(func(key, value interface{}) bool {
-		count++
+		atomic.AddInt64(&count, int64(value.(lb.LoadBalancerInterface).Count()))
 		return true
 	})
-	return count
+
+	return int(atomic.LoadInt64(&count))
 }
 
 func (cm *ConsumerManager) Print() {
 	cm.consumers.Range(func(key, value interface{}) bool {
-		c := value.(ConsumerInterface)
-		log.Warnf("key %s queue %v %v", key, c.GetQueueName(), c.GetQueueName())
+		value.(lb.LoadBalancerInterface).Range(func(key int, item *lb.Item) {
+			c := item.Instance().(ConsumerInterface)
+			log.Warnf("key %d queue %s id %d", key, c.GetQueueName(), c.GetId())
+		})
 		return true
 	})
 }

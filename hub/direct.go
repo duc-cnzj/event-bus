@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"mq/config"
 	"time"
 
 	"github.com/rs/xid"
@@ -13,6 +14,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+var _ ProducerInterface = (*DirectProducer)(nil)
+var _ ConsumerInterface = (*DirectConsumer)(nil)
 
 var ServerUnavailable = status.Errorf(codes.Unavailable, "server unavailable")
 
@@ -232,10 +236,6 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 	return d, nil
 }
 
-func (d *DirectProducer) RemoveSelf() {
-	d.pm.RemoveProducer(d)
-}
-
 func (d *DirectProducer) Close() {
 	if d.closed.isSet() {
 		log.Infof("producer %s already closed.", d.GetQueueName())
@@ -254,20 +254,12 @@ func (d *DirectProducer) Close() {
 	d.closed.setTrue()
 }
 
+func (d *DirectProducer) RemoveSelf() {
+	d.pm.RemoveProducer(d)
+}
+
 type DirectConsumer struct {
 	*ConsumerBase
-}
-
-func (d *DirectConsumer) Ack(uniqueId string) error {
-	return d.hub.Ack(uniqueId)
-}
-
-func (d *DirectConsumer) GetId() int64 {
-	return d.id
-}
-
-func (d *DirectConsumer) Nack(uniqueId string) error {
-	return d.hub.NAck(uniqueId)
 }
 
 func NewDirectConsumer(queueName string, hub Interface, id int64) ConsumerBuilder {
@@ -279,6 +271,18 @@ func NewDirectConsumer(queueName string, hub Interface, id int64) ConsumerBuilde
 		hub:       hub,
 		exchange:  DefaultExchange,
 	}}
+}
+
+func (d *DirectConsumer) Ack(uniqueId string) error {
+	return d.hub.Ack(uniqueId)
+}
+
+func (d *DirectConsumer) GetId() int64 {
+	return d.id
+}
+
+func (d *DirectConsumer) Nack(uniqueId string) error {
+	return d.hub.Nack(uniqueId)
 }
 
 func (d *DirectConsumer) Delivery() <-chan amqp.Delivery {
@@ -301,15 +305,13 @@ func (d *DirectConsumer) GetKind() string {
 	return d.kind
 }
 
-func (d *DirectConsumer) RemoveSelf() {
-	d.cm.RemoveConsumer(d)
-}
-
 func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	var (
 		ackProducer ProducerInterface
 		err         error
+		msg         = &Message{}
 	)
+
 	select {
 	case <-d.hub.Done():
 		log.Warn("hub done")
@@ -321,25 +323,32 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		log.Warn("Consume client done")
 		return nil, errors.New("client done")
 	case data, ok := <-d.delivery:
-		if ok {
-			msg := &Message{}
-			json.Unmarshal(data.Body, &msg)
-			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
-				return nil, err
-			}
-			if err := ackProducer.Publish(*msg); err != nil {
-				log.Error(err)
-				return nil, err
-			}
+		if !ok {
+			data.Nack(false, true)
 
-			if err := data.Ack(false); err != nil {
-				log.Error(err)
-				return nil, err
-			}
-
-			return msg, nil
+			return nil, ServerUnavailable
 		}
-		return nil, ServerUnavailable
+		if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
+			log.Error(err)
+			data.Nack(false, true)
+			return nil, err
+		}
+
+		json.Unmarshal(data.Body, &msg)
+		msg.RunAfter = nextRunTime(msg, d.hub.Config())
+
+		if err := ackProducer.Publish(*msg); err != nil {
+			log.Error(err)
+			data.Nack(false, true)
+			return nil, err
+		}
+
+		if err := data.Ack(false); err != nil {
+			log.Error(err)
+			return nil, err
+		}
+
+		return msg, nil
 	}
 }
 
@@ -536,4 +545,18 @@ func (d *DirectConsumer) Close() {
 
 	log.Info("after consumer close ", d.GetQueueName())
 	d.closed.setTrue()
+}
+
+func (d *DirectConsumer) RemoveSelf() {
+	d.cm.RemoveConsumer(d)
+}
+
+func nextRunTime(msg *Message, config *config.Config) *time.Time {
+	if msg.RunAfter != nil {
+		return msg.RunAfter
+	}
+
+	next := time.Now().Add(time.Duration(config.MaxJobRunningSeconds) * time.Second)
+
+	return &next
 }

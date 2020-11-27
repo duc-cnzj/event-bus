@@ -18,13 +18,15 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MqClient interface {
 	// php:inline
-	Publish(ctx context.Context, in *Pub, opts ...grpc.CallOption) (*Response, error)
+	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Response, error)
 	// php:inline
 	DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*Response, error)
 	// php:inline
-	Subscribe(ctx context.Context, in *Sub, opts ...grpc.CallOption) (*Response, error)
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*Response, error)
 	// php:inline
 	Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error)
+	// php:inline
+	Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error)
 }
 
 type mqClient struct {
@@ -35,7 +37,7 @@ func NewMqClient(cc grpc.ClientConnInterface) MqClient {
 	return &mqClient{cc}
 }
 
-func (c *mqClient) Publish(ctx context.Context, in *Pub, opts ...grpc.CallOption) (*Response, error) {
+func (c *mqClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
 	err := c.cc.Invoke(ctx, "/mq.Mq/publish", in, out, opts...)
 	if err != nil {
@@ -53,7 +55,7 @@ func (c *mqClient) DelayPublish(ctx context.Context, in *DelayPublishRequest, op
 	return out, nil
 }
 
-func (c *mqClient) Subscribe(ctx context.Context, in *Sub, opts ...grpc.CallOption) (*Response, error) {
+func (c *mqClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
 	err := c.cc.Invoke(ctx, "/mq.Mq/subscribe", in, out, opts...)
 	if err != nil {
@@ -71,18 +73,29 @@ func (c *mqClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption
 	return out, nil
 }
 
+func (c *mqClient) Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
+	err := c.cc.Invoke(ctx, "/mq.Mq/nack", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MqServer is the server API for Mq service.
 // All implementations must embed UnimplementedMqServer
 // for forward compatibility
 type MqServer interface {
 	// php:inline
-	Publish(context.Context, *Pub) (*Response, error)
+	Publish(context.Context, *PublishRequest) (*Response, error)
 	// php:inline
 	DelayPublish(context.Context, *DelayPublishRequest) (*Response, error)
 	// php:inline
-	Subscribe(context.Context, *Sub) (*Response, error)
+	Subscribe(context.Context, *SubscribeRequest) (*Response, error)
 	// php:inline
 	Ack(context.Context, *QueueId) (*Response, error)
+	// php:inline
+	Nack(context.Context, *QueueId) (*Response, error)
 	mustEmbedUnimplementedMqServer()
 }
 
@@ -90,17 +103,20 @@ type MqServer interface {
 type UnimplementedMqServer struct {
 }
 
-func (UnimplementedMqServer) Publish(context.Context, *Pub) (*Response, error) {
+func (UnimplementedMqServer) Publish(context.Context, *PublishRequest) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
 }
 func (UnimplementedMqServer) DelayPublish(context.Context, *DelayPublishRequest) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DelayPublish not implemented")
 }
-func (UnimplementedMqServer) Subscribe(context.Context, *Sub) (*Response, error) {
+func (UnimplementedMqServer) Subscribe(context.Context, *SubscribeRequest) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
 func (UnimplementedMqServer) Ack(context.Context, *QueueId) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ack not implemented")
+}
+func (UnimplementedMqServer) Nack(context.Context, *QueueId) (*Response, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Nack not implemented")
 }
 func (UnimplementedMqServer) mustEmbedUnimplementedMqServer() {}
 
@@ -116,7 +132,7 @@ func RegisterMqServer(s grpc.ServiceRegistrar, srv MqServer) {
 }
 
 func _Mq_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Pub)
+	in := new(PublishRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -128,7 +144,7 @@ func _Mq_Publish_Handler(srv interface{}, ctx context.Context, dec func(interfac
 		FullMethod: "/mq.Mq/publish",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MqServer).Publish(ctx, req.(*Pub))
+		return srv.(MqServer).Publish(ctx, req.(*PublishRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -152,7 +168,7 @@ func _Mq_DelayPublish_Handler(srv interface{}, ctx context.Context, dec func(int
 }
 
 func _Mq_Subscribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Sub)
+	in := new(SubscribeRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -164,7 +180,7 @@ func _Mq_Subscribe_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/mq.Mq/subscribe",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MqServer).Subscribe(ctx, req.(*Sub))
+		return srv.(MqServer).Subscribe(ctx, req.(*SubscribeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -183,6 +199,24 @@ func _Mq_Ack_Handler(srv interface{}, ctx context.Context, dec func(interface{})
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(MqServer).Ack(ctx, req.(*QueueId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Mq_Nack_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueueId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqServer).Nack(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.Mq/nack",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqServer).Nack(ctx, req.(*QueueId))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -206,6 +240,10 @@ var _Mq_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ack",
 			Handler:    _Mq_Ack_Handler,
+		},
+		{
+			MethodName: "nack",
+			Handler:    _Mq_Nack_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -31,7 +31,9 @@ func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type Interface interface {
 	Ack(string) error
-	NAck(string) error
+	Nack(string) error
+	DelayPublish(queueName string, msg Message) (*models.DelayQueue, error)
+
 	ConsumeConfirmQueue()
 	ConsumeAckQueue()
 
@@ -136,32 +138,34 @@ func (h *Hub) Ack(uniqueId string) error {
 	return nil
 }
 
-func (h *Hub) NAck(uniqueId string) error {
+func (h *Hub) Nack(uniqueId string) error {
 	var (
 		err   error
 		queue models.Queue
 	)
 	now := time.Now()
-	if err = h.GetDBConn().Model(&models.Queue{}).Where("unique_id", uniqueId).First(&queue).Error; err != nil {
+	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id", uniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"nacked_at"}),
+				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after"}),
 			}).Create(&models.Queue{
 				UniqueId: uniqueId,
 				NAckedAt: &now,
+				RunAfter: &now,
 			})
 		}
 	}
 
-	if queue.NAcked() {
+	if queue.Deleted() || queue.Nackd() {
 		return nil
 	}
+
 	if queue.Acked() {
 		return errors.New("already acked")
 	}
 
-	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NAckedAt: &now})
+	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NAckedAt: &now, RunAfter: &now})
 
 	return nil
 }
@@ -200,6 +204,7 @@ func (h *Hub) consumeConfirmQueue() {
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
 				log.Error("not ok")
+				delivery.Nack(false, true)
 				return
 			}
 
@@ -242,6 +247,7 @@ func (h *Hub) consumeAckQueue() {
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
 				log.Error("not ok")
+				delivery.Nack(false, true)
 				return
 			}
 
@@ -398,24 +404,23 @@ func (h *Hub) Close() {
 	log.Info("hub canceled.")
 	if !h.amqpConn.IsClosed() {
 		h.CloseAllProducer()
-		log.Info("hub producer closed.")
 		h.CloseAllConsumer()
-		log.Info("hub consumer closed.")
 
+		log.Info("hub amqp conn closing.")
 		if err = h.amqpConn.Close(); err != nil {
 			log.Error(err)
 		}
 		log.Info("hub amqp conn closed.")
 	}
 
+	log.Info("db closing.")
 	if db, err = h.db.DB(); err != nil {
 		log.Error(err)
 	}
 	if err = db.Close(); err != nil {
 		log.Error(err)
 	}
-
-	log.Info("sql db closed.")
+	log.Info("db closed .")
 
 	log.Info("hub closed.")
 }
@@ -424,8 +429,30 @@ func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
+func (h *Hub) DelayPublish(queueName string, msg Message) (*models.DelayQueue, error) {
+	db := h.GetDBConn()
+	startTime := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
+
+	delayQueue := &models.DelayQueue{
+		Ref:          msg.Ref,
+		UniqueId:     xid.New().String(),
+		RunAfter:     &startTime,
+		DelaySeconds: msg.DelaySeconds,
+		Data:         msg.Data,
+		QueueName:    queueName,
+	}
+
+	if err := db.Create(delayQueue).Error; err != nil {
+		return nil, err
+	}
+
+	log.Debug(delayQueue)
+	return delayQueue, nil
+}
+
 func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	defer delivery.Ack(false)
+
 	var (
 		msg = &Message{}
 		err error
@@ -438,7 +465,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	var queue = &models.Queue{
 		UniqueId: msg.UniqueId,
 	}
-	if err = db.Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
+	if err = db.Unscoped().Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if ackMsg {
 				db.Clauses(clause.OnConflict{
@@ -458,6 +485,8 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 					ConfirmedAt: &now,
 					Data:        msg.Data,
 					QueueName:   msg.QueueName,
+					RunAfter:    msg.RunAfter,
+					Ref:         msg.Ref,
 				})
 			}
 		} else {
@@ -466,13 +495,20 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 		return
 	}
 
-	if queue.NAcked() {
+	if queue.Deleted() {
+		log.Warn("queue already deleted ", queue.UniqueId)
+		return
+	}
+
+	if queue.Nackd() {
 		if !ackMsg {
 			db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 				RetryTimes:  msg.RetryTimes,
 				ConfirmedAt: &now,
 				Data:        msg.Data,
 				QueueName:   msg.QueueName,
+				RunAfter:    msg.RunAfter,
+				Ref:         msg.Ref,
 			})
 		}
 		log.Warn("queue status", queue.NAckedAt)
@@ -487,25 +523,8 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			ConfirmedAt: &now,
 			Data:        msg.Data,
 			QueueName:   msg.QueueName,
+			RunAfter:    msg.RunAfter,
+			Ref:         msg.Ref,
 		})
 	}
-}
-
-func DelayPublish(db *gorm.DB, queueName string, msg Message) (*models.DelayQueue, error) {
-	startTime := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
-
-	delayQueue := &models.DelayQueue{
-		UniqueId:     xid.New().String(),
-		RunAfter:     &startTime,
-		DelaySeconds: msg.DelaySeconds,
-		Data:         msg.Data,
-		QueueName:    queueName,
-	}
-
-	if err := db.Create(delayQueue).Error; err != nil {
-		return nil, err
-	}
-
-	log.Debug(delayQueue)
-	return delayQueue, nil
 }

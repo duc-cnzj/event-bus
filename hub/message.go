@@ -2,6 +2,8 @@ package hub
 
 import "time"
 
+var _ MessageInterface = (*Message)(nil)
+
 type MessageInterface interface {
 	GetData() string
 	GetRunAfter() *time.Time
@@ -13,7 +15,7 @@ type Message struct {
 	UniqueId     string
 	Data         string     `json:"data"`
 	RetryTimes   int        `json:"retry_times"`
-	Ref          int        `json:"ref"`
+	Ref          string     `json:"ref"`
 	RunAfter     *time.Time `json:"run_after"`
 	DelaySeconds uint       `json:"delay_seconds"`
 	QueueName    string     `json:"queue_name"`

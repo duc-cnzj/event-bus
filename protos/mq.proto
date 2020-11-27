@@ -6,7 +6,7 @@ option go_package=".;mq";
 option php_metadata_namespace="DucCnzj\\EventBus\\Mq";
 option php_namespace="DucCnzj\\EventBus\\Mq";
 
-message Pub {
+message PublishRequest {
   string queue = 1;
   string data = 2;
 }
@@ -20,7 +20,7 @@ message Response {
   uint64 delaySeconds = 6;
 }
 
-message Sub {
+message SubscribeRequest {
   string queue = 1;
 }
 
@@ -36,11 +36,13 @@ message DelayPublishRequest {
 
 service Mq {
   // php:inline
-  rpc publish(Pub) returns (Response);
+  rpc publish(PublishRequest) returns (Response);
   // php:inline
   rpc delayPublish(DelayPublishRequest) returns (Response);
   // php:inline
-  rpc subscribe(Sub) returns (Response);
+  rpc subscribe(SubscribeRequest) returns (Response);
   // php:inline
   rpc ack(QueueId) returns (Response);
+  // php:inline
+  rpc nack(QueueId) returns (Response);
 }

@@ -129,6 +129,9 @@ func runHttp(h hub.Interface) {
 	})
 
 	app.Get("/stats", func(ctx *fiber.Ctx) error {
+		h.ProducerManager().Print()
+		h.ConsumerManager().Print()
+
 		return ctx.SendString(fmt.Sprintf("Consumers: %d, Producers: %d, NumGoroutine: %d\n", h.ConsumerManager().Count(), h.ProducerManager().Count(), runtime.NumGoroutine()))
 	})
 
@@ -180,42 +183,54 @@ func runCron(h hub.Interface) *cron.Cron {
 					lockList.Delete(lock.GetCurrentOwner())
 					lock.Release()
 				}()
+
 				log.Debug("[SUCCESS]: cron republish")
-				t := time.Now().Add(-time.Duration(h.Config().MaxJobRunningSeconds) * time.Second).String()
-				var queues []*models.Queue
-				if err := db.Where("retry_times < ?", cfg.RetryTimes).
-					Where("nacked_at is null").
+
+				var (
+					queues   []*models.Queue
+					producer hub.ProducerInterface
+					err      error
+				)
+
+				if err = db.Where("retry_times < ?", cfg.RetryTimes).
 					Where("acked_at is null").
 					Where("confirmed_at is not null").
-					Where("created_at < ?", t).
+					Where("run_after <= ?", time.Now()).
 					Limit(10000).
 					Find(&queues).
 					Error; err != nil {
 					log.Panic(err)
 				}
-				log.Debug("queues len:", len(queues))
-				var (
-					p   hub.ProducerInterface
-					err error
-				)
+				log.Debug("republish queues len:", len(queues))
 
 				for _, queue := range queues {
 					if h.IsClosed() {
 						log.Error("republish: hub closed")
 						return
 					}
-					if p, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
+					if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 						return
 					}
-					err := p.Publish(hub.Message{
-						UniqueId:   queue.UniqueId,
-						Data:       queue.Data,
-						RetryTimes: queue.RetryTimes + 1,
-						Ref:        int(queue.ID),
-					})
-					if err != nil {
-						log.Panic(err)
-						return
+					db.Delete(&queue)
+
+					if queue.Nackd() {
+						if _, err := h.DelayPublish(queue.QueueName, hub.Message{
+							DelaySeconds: h.Config().NackdJobNextRunDelaySeconds,
+							Data:         queue.Data,
+							Ref:          queue.UniqueId,
+						}); err != nil {
+							log.Error(err)
+							return
+						}
+					} else {
+						if err := producer.Publish(hub.Message{
+							Data:       queue.Data,
+							RetryTimes: queue.RetryTimes + 1,
+							Ref:        queue.UniqueId,
+						}); err != nil {
+							log.Error(err)
+							return
+						}
 					}
 				}
 			} else {
@@ -226,8 +241,8 @@ func runCron(h hub.Interface) *cron.Cron {
 		})
 	}
 
-	if h.Config().CronDelayPushEnabled {
-		log.Info("delay push job running.")
+	if h.Config().CronDelayPublishEnabled {
+		log.Info("delay publish job running.")
 
 		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(redisClient, "delay publish", dlm.WithEX(cfg.DLMExpiration))
@@ -238,25 +253,26 @@ func runCron(h hub.Interface) *cron.Cron {
 					lock.Release()
 				}()
 				log.Debug("[SUCCESS]: delay publish")
-				var queues []*models.DelayQueue
+				var (
+					queues   []*models.DelayQueue
+					producer hub.ProducerInterface
+					err      error
+				)
 				if err := db.Where("run_after <= ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
 					log.Panic(err)
 				}
 				log.Debug("delay queues len:", len(queues))
-				var (
-					p   hub.ProducerInterface
-					err error
-				)
 
 				for _, queue := range queues {
 					if h.IsClosed() {
 						log.Error("delay publish: hub closed")
 						return
 					}
-					if p, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
+					if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 						return
 					}
-					err := p.Publish(hub.Message{
+					err := producer.Publish(hub.Message{
+						Ref:       queue.Ref,
 						QueueName: queue.QueueName,
 						UniqueId:  queue.UniqueId,
 						Data:      queue.Data,

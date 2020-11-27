@@ -31,4 +31,4 @@ type ProducerBase struct {
 	closeChan chan *amqp.Error
 }
 
-var DefaultExchange = "duc_exchange"
+var DefaultExchange = "event_bus_default_exchange"

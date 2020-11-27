@@ -33,8 +33,7 @@ func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq
 		err        error
 	)
 
-	if delayQueue, err = hub.DelayPublish(
-		m.Hub.GetDBConn(),
+	if delayQueue, err = m.Hub.DelayPublish(
 		req.Queue,
 		hub.Message{
 			Data:         req.Data,
@@ -67,7 +66,20 @@ func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error)
 	}, nil
 }
 
-func (m *MQ) Publish(ctx context.Context, pub *mq.Pub) (*mq.Response, error) {
+// Nack 客户端拒绝消费
+func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
+	log.Debug("Nack", queueId.Id)
+
+	if err := m.Hub.Nack(queueId.GetId()); err != nil {
+		return nil, err
+	}
+
+	return &mq.Response{
+		Success: true,
+	}, nil
+}
+
+func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response, error) {
 	log.Debug("publish", pub.Data, pub.Queue)
 	if pub.Queue == "" || pub.Data == "" {
 		return nil, errors.New("queue name and data can not be null")
@@ -89,7 +101,7 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.Pub) (*mq.Response, error) {
 	}, nil
 }
 
-func (m *MQ) Subscribe(ctx context.Context, sub *mq.Sub) (*mq.Response, error) {
+func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Response, error) {
 	log.Debug("Subscribe", sub.Queue)
 	var (
 		consumer hub.ConsumerInterface

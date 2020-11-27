@@ -8,6 +8,10 @@ type Config struct {
 
 	// 作业最大执行秒数
 	MaxJobRunningSeconds uint
+
+	// nackd queue next job run delay seconds
+	NackdJobNextRunDelaySeconds uint
+
 	// 作业最大重试次数
 	RetryTimes uint
 	// 分布式锁有效时间
@@ -31,7 +35,7 @@ type Config struct {
 	// 开启重新推送消息的任务
 	CronRepublishEnabled bool
 	// 开启延迟推送消息的任务
-	CronDelayPushEnabled bool
+	CronDelayPublishEnabled bool
 
 	DBHost     string
 	DBPort     string

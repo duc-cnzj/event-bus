@@ -26,7 +26,7 @@ data:
 
     # cronjob
     CronRepublishEnabled: {{ default true .Values.conf.CronRepublishEnabled  }}
-    CronDelayPushEnabled: {{ default true .Values.conf.CronDelayPushEnabled }}
+    CronDelayPublishEnabled: {{ default true .Values.conf.CronDelayPublishEnabled }}
 
     # DATABASE
     DB_HOST: {{ default "127.0.0.1" .Values.conf.DB_HOST }}

@@ -78,29 +78,30 @@ func initConfig() {
 		log.Fatal(err)
 	}
 	cfg = &config.Config{
-		Debug:                viper.GetBool("Debug"),
-		PrintConfig:          viper.GetBool("PrintConfig"),
-		MaxJobRunningSeconds: viper.GetUint("MaxJobRunningSeconds"),
-		RetryTimes:           viper.GetUint("RetryTimes"),
-		DLMExpiration:        viper.GetInt("DLMExpiration"),
-		HttpPort:             viper.GetString("HttpPort"),
-		RpcPort:              viper.GetString("RpcPort"),
-		PrefetchCount:        viper.GetInt("PrefetchCount"),
-		AmqpUrl:              viper.GetString("AmqpUrl"),
-		CronRepublishEnabled: viper.GetBool("CronRepublishEnabled"),
-		CronDelayPushEnabled: viper.GetBool("CronDelayPushEnabled"),
-		DBPort:               viper.GetString("DB_PORT"),
-		DBDatabase:           viper.GetString("DB_DATABASE"),
-		DBHost:               viper.GetString("DB_HOST"),
-		DBPassword:           viper.GetString("DB_PASSWORD"),
-		DBUsername:           viper.GetString("DB_USERNAME"),
-		RedisAddr:            viper.GetString("RedisAddr"),
-		RedisPassword:        viper.GetString("RedisPassword"),
-		RedisUsername:        viper.GetString("RedisUsername"),
-		RedisDB:              viper.GetInt("RedisDB"),
-		EachQueueConsumerNum: viper.GetInt64("EachQueueConsumerNum"),
-		EachQueueProducerNum: viper.GetInt64("EachQueueProducerNum"),
-		BackConsumerNum:      viper.GetInt64("BackConsumerNum"),
+		Debug:                       viper.GetBool("Debug"),
+		PrintConfig:                 viper.GetBool("PrintConfig"),
+		MaxJobRunningSeconds:        viper.GetUint("MaxJobRunningSeconds"),
+		NackdJobNextRunDelaySeconds: viper.GetUint("NackdJobNextRunDelaySeconds"),
+		RetryTimes:                  viper.GetUint("RetryTimes"),
+		DLMExpiration:               viper.GetInt("DLMExpiration"),
+		HttpPort:                    viper.GetString("HttpPort"),
+		RpcPort:                     viper.GetString("RpcPort"),
+		PrefetchCount:               viper.GetInt("PrefetchCount"),
+		AmqpUrl:                     viper.GetString("AmqpUrl"),
+		CronRepublishEnabled:        viper.GetBool("CronRepublishEnabled"),
+		CronDelayPublishEnabled:     viper.GetBool("CronDelayPublishEnabled"),
+		DBPort:                      viper.GetString("DB_PORT"),
+		DBDatabase:                  viper.GetString("DB_DATABASE"),
+		DBHost:                      viper.GetString("DB_HOST"),
+		DBPassword:                  viper.GetString("DB_PASSWORD"),
+		DBUsername:                  viper.GetString("DB_USERNAME"),
+		RedisAddr:                   viper.GetString("RedisAddr"),
+		RedisPassword:               viper.GetString("RedisPassword"),
+		RedisUsername:               viper.GetString("RedisUsername"),
+		RedisDB:                     viper.GetInt("RedisDB"),
+		EachQueueConsumerNum:        viper.GetInt64("EachQueueConsumerNum"),
+		EachQueueProducerNum:        viper.GetInt64("EachQueueProducerNum"),
+		BackConsumerNum:             viper.GetInt64("BackConsumerNum"),
 	}
 	printConfig()
 	if cfg.Debug {
@@ -120,6 +121,7 @@ func printConfig() {
 	log.Warnf(f, "Debug", cfg.Debug)
 	log.Warnf(f, "PrintConfig", cfg.PrintConfig)
 	log.Warnf(f, "MaxJobRunningSeconds", cfg.MaxJobRunningSeconds)
+	log.Warnf(f, "NackdJobNextRunDelaySeconds", cfg.NackdJobNextRunDelaySeconds)
 	log.Warnf(f, "RetryTimes", cfg.RetryTimes)
 	log.Warnf(f, "DLMExpiration", cfg.DLMExpiration)
 	log.Warnf(f, "HttpPort", cfg.HttpPort)
@@ -127,7 +129,7 @@ func printConfig() {
 	log.Warnf(f, "PrefetchCount", cfg.PrefetchCount)
 	log.Warnf(f, "AmqpUrl", cfg.AmqpUrl)
 	log.Warnf(f, "CronRepublishEnabled", cfg.CronRepublishEnabled)
-	log.Warnf(f, "CronDelayPushEnabled", cfg.CronDelayPushEnabled)
+	log.Warnf(f, "CronDelayPublishEnabled", cfg.CronDelayPublishEnabled)
 	log.Warnf(f, "DB_PORT", cfg.DBPort)
 	log.Warnf(f, "DB_HOST", cfg.DBHost)
 	log.Warnf(f, "DB_DATABASE", cfg.DBDatabase)
