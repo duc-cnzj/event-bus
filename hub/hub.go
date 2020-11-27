@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -16,10 +15,6 @@ import (
 	"sync/atomic"
 	"time"
 )
-
-var AmqpConnClosed = errors.New("amqp conn closed")
-var AckQueueName = "event_bus_ack_queue"
-var ConfirmQueueName = "event_bus_confirm_queue"
 
 var _ Interface = (*Hub)(nil)
 
@@ -109,10 +104,13 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				log.Error("amqp 开始重连")
 				h.amqpConn = conn2.ReConnect(h.Config().AmqpUrl)
 				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
-				go h.ConsumeConfirmQueue()
-				go h.ConsumeAckQueue()
+
+				if h.Config().BackgroundConsumerEnabled {
+					go h.ConsumeConfirmQueue()
+					go h.ConsumeAckQueue()
+				}
 			case <-h.ctx.Done():
-				log.Info("hub ctx Done exit")
+				log.Info("hub ctx ChannelDone exit")
 				return
 			}
 		}
@@ -162,7 +160,7 @@ func (h *Hub) Nack(uniqueId string) error {
 	}
 
 	if queue.Acked() {
-		return errors.New("already acked")
+		return ErrorAlreadyAcked
 	}
 
 	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NAckedAt: &now, RunAfter: &now})
@@ -193,7 +191,7 @@ func (h *Hub) consumeConfirmQueue() {
 
 	for {
 		select {
-		case <-consumer.Done():
+		case <-consumer.ChannelDone():
 			return
 		case <-h.Done():
 			log.Error("hub done ConsumeConfirmQueue exit.")
@@ -236,7 +234,7 @@ func (h *Hub) consumeAckQueue() {
 
 	for {
 		select {
-		case <-consumer.Done():
+		case <-consumer.ChannelDone():
 			return
 		case <-h.Done():
 			log.Error("hub done ConsumeAckQueue exit.")
@@ -331,10 +329,12 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 	)
 
 	if h.IsClosed() {
-		return nil, ServerUnavailable
+		log.Debug("hub.NewProducer but hub closed.")
+		return nil, ErrorServerUnavailable
 	}
 
 	if producer, err = h.ProducerManager().GetProducer(queueName, kind); err != nil {
+		log.Debugf("hub.NewProducer GetProducer err %v.", err)
 		return nil, err
 	}
 
@@ -348,7 +348,7 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 	)
 
 	if h.IsClosed() {
-		return nil, ServerUnavailable
+		return nil, ErrorServerUnavailable
 	}
 
 	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind); err != nil {
@@ -383,7 +383,7 @@ func (h *Hub) GetAmqpConn() (*amqp.Connection, error) {
 		return h.amqpConn, nil
 	}
 
-	return nil, AmqpConnClosed
+	return nil, ErrorAmqpConnClosed
 }
 
 func (h *Hub) IsClosed() bool {

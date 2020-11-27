@@ -12,6 +12,7 @@ type ProducerInterface interface {
 	GetKind() string
 	Publish(Message) error
 	Close()
+	ChannelDone() chan *amqp.Error
 }
 
 type ProducerBase struct {
@@ -30,5 +31,3 @@ type ProducerBase struct {
 
 	closeChan chan *amqp.Error
 }
-
-var DefaultExchange = "event_bus_default_exchange"

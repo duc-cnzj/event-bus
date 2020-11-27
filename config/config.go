@@ -37,13 +37,21 @@ type Config struct {
 	// 开启延迟推送消息的任务
 	CronDelayPublishEnabled bool
 
+	// 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列
+	BackgroundConsumerEnabled bool
+
 	DBHost     string
 	DBPort     string
 	DBDatabase string
 	DBUsername string
 	DBPassword string
 
+	// 每个队列的消费者数量
 	EachQueueProducerNum int64
+
+	// 每个队列的生产者数量
 	EachQueueConsumerNum int64
-	BackConsumerNum      int64
+
+	// 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
+	BackConsumerNum int64
 }

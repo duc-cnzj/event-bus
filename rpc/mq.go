@@ -17,12 +17,29 @@ type MQ struct {
 	Hub hub.Interface
 }
 
-func (m *MQ) NewProducer(queueName string) (hub.ProducerInterface, error) {
-	return m.Hub.NewProducer(queueName, amqp.ExchangeDirect)
-}
+// 推送消息
+func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response, error) {
+	log.Debug("publish", pub.Data, pub.Queue)
+	var (
+		producer hub.ProducerInterface
+		err      error
+	)
 
-func (m *MQ) NewConsumer(queueName string) (hub.ConsumerInterface, error) {
-	return m.Hub.NewConsumer(queueName, amqp.ExchangeDirect)
+	if pub.Queue == "" || pub.Data == "" {
+		return nil, errors.New("queue name and data can not be null")
+	}
+
+	if producer, err = m.newProducer(pub.Queue); err != nil {
+		return nil, hub.ErrorServerUnavailable
+	}
+	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
+		return nil, err
+	}
+
+	return &mq.Response{
+		Success: true,
+		Data:    pub.Data,
+	}, nil
 }
 
 // DelayPublish 延迟推送
@@ -53,54 +70,7 @@ func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq
 	}, nil
 }
 
-// Ack 客户端确认已消费成功
-func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
-	log.Debug("Ack", queueId.Id)
-
-	if err := m.Hub.Ack(queueId.GetId()); err != nil {
-		return nil, err
-	}
-
-	return &mq.Response{
-		Success: true,
-	}, nil
-}
-
-// Nack 客户端拒绝消费
-func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
-	log.Debug("Nack", queueId.Id)
-
-	if err := m.Hub.Nack(queueId.GetId()); err != nil {
-		return nil, err
-	}
-
-	return &mq.Response{
-		Success: true,
-	}, nil
-}
-
-func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response, error) {
-	log.Debug("publish", pub.Data, pub.Queue)
-	if pub.Queue == "" || pub.Data == "" {
-		return nil, errors.New("queue name and data can not be null")
-	}
-	var (
-		producer hub.ProducerInterface
-		err      error
-	)
-	if producer, err = m.NewProducer(pub.Queue); err != nil {
-		return nil, errors.New("server unavailable")
-	}
-	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
-		return nil, err
-	}
-
-	return &mq.Response{
-		Success: true,
-		Data:    pub.Data,
-	}, nil
-}
-
+// Subscribe 订阅消息
 func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Response, error) {
 	log.Debug("Subscribe", sub.Queue)
 	var (
@@ -108,7 +78,7 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Respo
 		err      error
 		msg      *hub.Message
 	)
-	if consumer, err = m.NewConsumer(sub.Queue); err != nil {
+	if consumer, err = m.newConsumer(sub.Queue); err != nil {
 		return nil, status.Errorf(codes.Unavailable, "server unavailable")
 	}
 	ctx, cancel := context.WithCancel(ctx)
@@ -126,6 +96,36 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Respo
 	}, nil
 }
 
+// Ack 客户端确认已消费成功
+func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
+	log.Debug("Ack", queueId.Id)
+
+	if err := m.Hub.Ack(queueId.GetId()); err != nil {
+		return nil, err
+	}
+
+	return &mq.Response{Success: true}, nil
+}
+
+// Nack 客户端拒绝消费
+func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
+	log.Debug("Nack", queueId.Id)
+
+	if err := m.Hub.Nack(queueId.GetId()); err != nil {
+		return nil, err
+	}
+
+	return &mq.Response{Success: true}, nil
+}
+
 func (m *MQ) mustEmbedUnimplementedMQServer() {
 	panic("implement me")
+}
+
+func (m *MQ) newProducer(queueName string) (hub.ProducerInterface, error) {
+	return m.Hub.NewProducer(queueName, amqp.ExchangeDirect)
+}
+
+func (m *MQ) newConsumer(queueName string) (hub.ConsumerInterface, error) {
+	return m.Hub.NewConsumer(queueName, amqp.ExchangeDirect)
 }

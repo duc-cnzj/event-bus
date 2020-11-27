@@ -2,13 +2,12 @@ package hub
 
 import "time"
 
-var _ MessageInterface = (*Message)(nil)
-
 type MessageInterface interface {
 	GetData() string
 	GetRunAfter() *time.Time
 	GetDelaySeconds() uint
 	IsDelay() bool
+	GetUniqueId() string
 }
 
 type Message struct {
@@ -19,6 +18,10 @@ type Message struct {
 	RunAfter     *time.Time `json:"run_after"`
 	DelaySeconds uint       `json:"delay_seconds"`
 	QueueName    string     `json:"queue_name"`
+}
+
+func (m *Message) GetUniqueId() string {
+	return m.UniqueId
 }
 
 func (m *Message) GetData() string {

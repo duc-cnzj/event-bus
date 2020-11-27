@@ -1,15 +1,22 @@
 Debug: false
 PrintConfig: false
+
+# 重试次数
 RetryTimes: 3
+
+# 分布式锁加锁时长
 DLMExpiration: 1800
-MaxJobRunningSeconds: 1800
 
-HttpPort: 7878
+# 每个job最大执行时间
+MaxJobRunningSeconds: 10
 
-RpcPort: 9091
+# nackd 之后重新推送的延迟时间
+NackdJobNextRunDelaySeconds: 30
 
 AmqpUrl: amqp://guest:guest@localhost:5672/
-PrefetchCount: 500
+PrefetchCount: 1000
+HttpPort: 7878
+RpcPort: 9091
 
 # redis
 RedisAddr: localhost:6379
@@ -18,8 +25,11 @@ RedisUsername:
 RedisPassword:
 
 # cronjob
-CronRepublishEnabled: false
+# nack 以及 未消费队列重新推送定时任务
+CronRepublishEnabled: true
+# 延迟队列定时任务
 CronDelayPublishEnabled: false
+
 
 # DATABASE
 DB_HOST: 127.0.0.1
@@ -28,6 +38,12 @@ DB_DATABASE: mq_v2
 DB_USERNAME: root
 DB_PASSWORD:
 
-EachQueueConsumerNum: 1
-EachQueueProducerNum: 1
-BackConsumerNum: 3
+# 每个队列的消费者数量
+EachQueueConsumerNum: 5
+# 每个队列的生产者数量
+EachQueueProducerNum: 3
+
+# 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列
+BackgroundConsumerEnabled: true
+# 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
+BackConsumerNum: 5

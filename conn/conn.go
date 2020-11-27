@@ -22,7 +22,7 @@ func NewConn(url string) (*amqp.Connection, error) {
 
 func ReConnect(url string) *amqp.Connection {
 	var err error
-	log.Warn("reconnect")
+	log.Warn("reconnecting")
 	timeout, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 LABEL:
@@ -33,7 +33,7 @@ LABEL:
 		case <-time.After(1 * time.Second):
 			conn, err = NewConn(url)
 			if err == nil {
-				log.Info("success")
+				log.Info("reconnected success")
 				break LABEL
 			}
 			log.Debug(err)

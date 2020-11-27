@@ -90,6 +90,7 @@ func initConfig() {
 		AmqpUrl:                     viper.GetString("AmqpUrl"),
 		CronRepublishEnabled:        viper.GetBool("CronRepublishEnabled"),
 		CronDelayPublishEnabled:     viper.GetBool("CronDelayPublishEnabled"),
+		BackgroundConsumerEnabled:   viper.GetBool("BackgroundConsumerEnabled"),
 		DBPort:                      viper.GetString("DB_PORT"),
 		DBDatabase:                  viper.GetString("DB_DATABASE"),
 		DBHost:                      viper.GetString("DB_HOST"),
@@ -130,6 +131,7 @@ func printConfig() {
 	log.Warnf(f, "AmqpUrl", cfg.AmqpUrl)
 	log.Warnf(f, "CronRepublishEnabled", cfg.CronRepublishEnabled)
 	log.Warnf(f, "CronDelayPublishEnabled", cfg.CronDelayPublishEnabled)
+	log.Warnf(f, "BackgroundConsumerEnabled", cfg.BackgroundConsumerEnabled)
 	log.Warnf(f, "DB_PORT", cfg.DBPort)
 	log.Warnf(f, "DB_HOST", cfg.DBHost)
 	log.Warnf(f, "DB_DATABASE", cfg.DBDatabase)

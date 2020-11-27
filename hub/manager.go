@@ -29,9 +29,10 @@ func NewProducerManager(hub *Hub) *ProducerManager {
 
 func (pm *ProducerManager) GetProducer(queueName, kind string) (ProducerInterface, error) {
 	var (
-		one *lb.Item
-		err error
+		item *lb.Item
+		err  error
 	)
+
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
@@ -56,11 +57,11 @@ func (pm *ProducerManager) GetProducer(queueName, kind string) (ProducerInterfac
 
 	pm.producers.Store(key, loadBalancer)
 
-	if one, err = loadBalancer.Get(); err != nil {
+	if item, err = loadBalancer.Get(); err != nil {
 		return nil, err
 	}
 
-	return one.Instance().(ProducerInterface), nil
+	return item.Instance().(ProducerInterface), nil
 
 }
 
@@ -105,18 +106,10 @@ func (pm *ProducerManager) Print() {
 	pm.producers.Range(func(key, value interface{}) bool {
 		value.(lb.LoadBalancerInterface).Range(func(key int, item *lb.Item) {
 			p := item.Instance().(ProducerInterface)
-			log.Warnf("key %d queue %s id %d", key, p.GetQueueName(), p.GetId())
+			log.Infof("key %d queue %s id %d", key, p.GetQueueName(), p.GetId())
 		})
 		return true
 	})
-}
-
-func (pm *ProducerManager) getProducerIfHas(key string) (ProducerInterface, bool) {
-	if load, ok := pm.producers.Load(key); ok {
-		return load.(ProducerInterface), true
-	}
-
-	return nil, false
 }
 
 func (pm *ProducerManager) getKey(queueName, kind string) string {
@@ -146,20 +139,20 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 	defer cm.mu.Unlock()
 
 	var (
-		one *lb.Item
-		err error
+		item *lb.Item
+		err  error
 	)
 
 	key := cm.getKey(queueName, kind)
 
 	if load, ok := cm.consumers.Load(key); ok {
-		if one, err = load.(lb.LoadBalancerInterface).Get(); err != nil {
+		if item, err = load.(lb.LoadBalancerInterface).Get(); err != nil {
 			return nil, err
 		} else {
-			return one.Instance().(ConsumerInterface), nil
+			return item.Instance().(ConsumerInterface), nil
 		}
 	}
-	log.Error(cm.hub.Config().EachQueueConsumerNum)
+
 	loadBalancer := lb.NewLoadBalancer(cm.hub.Config().EachQueueConsumerNum, func(id int64) (interface{}, error) {
 		switch kind {
 		case amqp.ExchangeDirect:
@@ -171,11 +164,11 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 
 	cm.consumers.Store(key, loadBalancer)
 
-	if one, err = loadBalancer.Get(); err != nil {
+	if item, err = loadBalancer.Get(); err != nil {
 		return nil, err
 	}
 
-	return one.Instance().(ConsumerInterface), nil
+	return item.Instance().(ConsumerInterface), nil
 }
 
 func (cm *ConsumerManager) RemoveConsumer(c ConsumerInterface) {
@@ -220,7 +213,7 @@ func (cm *ConsumerManager) Print() {
 	cm.consumers.Range(func(key, value interface{}) bool {
 		value.(lb.LoadBalancerInterface).Range(func(key int, item *lb.Item) {
 			c := item.Instance().(ConsumerInterface)
-			log.Warnf("key %d queue %s id %d", key, c.GetQueueName(), c.GetId())
+			log.Infof("key %d queue %s id %d", key, c.GetQueueName(), c.GetId())
 		})
 		return true
 	})
@@ -228,14 +221,6 @@ func (cm *ConsumerManager) Print() {
 
 func (cm *ConsumerManager) getKey(queueName, kind string) string {
 	return getKey(queueName, kind)
-}
-
-func (cm *ConsumerManager) getConsumerIfHas(key string) (ConsumerInterface, bool) {
-	if load, ok := cm.consumers.Load(key); ok {
-		return load.(ConsumerInterface), true
-	}
-
-	return nil, false
 }
 
 func getKey(queueName, kind string) string {
