@@ -27,18 +27,16 @@ var produceCmd = &cobra.Command{
 			log.Error("error num.")
 			os.Exit(1)
 		}
-		initConfig()
-		LoadDB()
-		LoadRedis()
+		app.Boot()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		mqConn, err := conn.NewConn(cfg.AmqpUrl)
+		mqConn, err := conn.NewConn(app.Config().AmqpUrl)
 		if err != nil {
 			log.Fatal(err)
 		}
 		_, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		h := hub.NewHub(mqConn, cfg, db)
+		h := hub.NewHub(mqConn, app.Config(), app.DB())
 		h.Config().EachQueueProducerNum = int64(testProducerNum)
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
 

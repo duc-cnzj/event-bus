@@ -38,16 +38,14 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "run mq server",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		initConfig()
-		LoadDB()
-		LoadRedis()
+		app.Boot()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		mqConn, err := conn.NewConn(cfg.AmqpUrl)
+		mqConn, err := conn.NewConn(app.Config().AmqpUrl)
 		if err != nil {
 			log.Fatal(err)
 		}
-		h := hub.NewHub(mqConn, cfg, db)
+		h := hub.NewHub(mqConn, app.Config(), app.DB())
 
 		if h.Config().BackgroundConsumerEnabled {
 			go h.ConsumeConfirmQueue()
@@ -178,7 +176,7 @@ func runCron(h hub.Interface) *cron.Cron {
 	if h.Config().CronRepublishEnabled {
 		log.Info("Republish job running.")
 		cr.AddFunc("@every 1s", func() {
-			lock := dlm.NewLock(redisClient, "republish", dlm.WithEX(cfg.DLMExpiration))
+			lock := dlm.NewLock(app.Redis(), "republish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
 				lockList.Store(lock.GetCurrentOwner(), lock)
 				defer func() {
@@ -194,7 +192,7 @@ func runCron(h hub.Interface) *cron.Cron {
 					err      error
 				)
 
-				if err = db.Where("retry_times < ?", cfg.RetryTimes).
+				if err = app.DB().Where("retry_times < ?", app.Config().RetryTimes).
 					Where("acked_at is null").
 					Where("confirmed_at is not null").
 					Where("run_after <= ?", time.Now()).
@@ -213,7 +211,7 @@ func runCron(h hub.Interface) *cron.Cron {
 					if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 						return
 					}
-					db.Delete(&queue)
+					app.DB().Delete(&queue)
 
 					if queue.Nackd() {
 						if _, err := h.DelayPublish(queue.QueueName, hub.Message{
@@ -247,7 +245,7 @@ func runCron(h hub.Interface) *cron.Cron {
 		log.Info("delay publish job running.")
 
 		cr.AddFunc("@every 1s", func() {
-			lock := dlm.NewLock(redisClient, "delay publish", dlm.WithEX(cfg.DLMExpiration))
+			lock := dlm.NewLock(app.Redis(), "delay publish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
 				lockList.Store(lock.GetCurrentOwner(), lock)
 				defer func() {
@@ -260,7 +258,7 @@ func runCron(h hub.Interface) *cron.Cron {
 					producer hub.ProducerInterface
 					err      error
 				)
-				if err := db.Where("run_after <= ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
+				if err := app.DB().Where("run_after <= ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
 					log.Panic(err)
 				}
 				log.Debug("delay queues len:", len(queues))
@@ -283,7 +281,7 @@ func runCron(h hub.Interface) *cron.Cron {
 						log.Panic("delay publish error", err)
 						return
 					}
-					db.Delete(queue)
+					app.DB().Delete(queue)
 				}
 			} else {
 				log.Warning("delay publish: Acquire Fail!")

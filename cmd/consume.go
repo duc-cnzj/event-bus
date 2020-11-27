@@ -22,17 +22,15 @@ var consumeCmd = &cobra.Command{
 			log.Errorf("error num %d.", testProducerNum)
 			os.Exit(1)
 		}
-		initConfig()
-		LoadDB()
-		LoadRedis()
+		app.Boot()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
-		mqConn, err := conn.NewConn(cfg.AmqpUrl)
+		mqConn, err := conn.NewConn(app.Config().AmqpUrl)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		h := hub.NewHub(mqConn, cfg, db)
+		h := hub.NewHub(mqConn, app.Config(), app.DB())
 		h.Config().EachQueueConsumerNum = int64(testConsumerNum)
 		log.Infof("consumer num: %d queue %s", testConsumerNum, testQueueName)
 
