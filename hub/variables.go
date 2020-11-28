@@ -13,3 +13,4 @@ var ErrorAlreadyAcked = errors.New("already acked")
 var DefaultExchange = "event_bus_default_exchange"
 var AckQueueName = "event_bus_ack_queue"
 var ConfirmQueueName = "event_bus_confirm_queue"
+var DelayQueueName = "event_bus_delay_queue"

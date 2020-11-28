@@ -112,5 +112,5 @@ conf:
 
   EachQueueConsumerNum: 5
   EachQueueProducerNum: 3
-  BackConsumerNum: 20
+  BackConsumerGoroutineNum: 20
   BackgroundConsumerEnabled: true

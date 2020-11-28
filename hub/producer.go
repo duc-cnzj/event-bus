@@ -10,6 +10,7 @@ type ProducerInterface interface {
 	GetChannel() *amqp.Channel
 	GetQueueName() string
 	GetKind() string
+	DelayPublish(string, Message, uint) error
 	Publish(Message) error
 	Close()
 	ChannelDone() chan *amqp.Error

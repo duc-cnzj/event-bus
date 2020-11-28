@@ -37,6 +37,10 @@ func (d *DirectProducer) GetId() int64 {
 	return d.id
 }
 
+func (d *DirectProducer) DelayPublish(queueName string, message Message, delaySeconds uint) error {
+	return d.hub.DelayPublish(queueName, message, delaySeconds)
+}
+
 func (d *DirectProducer) Publish(message Message) error {
 	var (
 		body []byte
@@ -63,7 +67,7 @@ func (d *DirectProducer) Publish(message Message) error {
 	default:
 		return d.channel.Publish(
 			d.exchange,
-			d.queueName,
+			d.GetQueueName(),
 			false,
 			false,
 			amqp.Publishing{

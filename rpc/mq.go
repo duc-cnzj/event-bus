@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"mq/hub"
-	"mq/models"
 	mq "mq/protos"
 )
 
@@ -46,28 +45,20 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response,
 func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq.Response, error) {
 	log.Debug("delay publish", req.Queue)
 	var (
-		delayQueue *models.DelayQueue
-		err        error
+		err error
 	)
 
-	if delayQueue, err = m.Hub.DelayPublish(
+	if err = m.Hub.DelayPublish(
 		req.Queue,
 		hub.Message{
-			Data:         req.Data,
-			DelaySeconds: uint(req.Seconds),
+			Data: req.Data,
 		},
+		uint(req.Seconds),
 	); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{
-		Success:      true,
-		Data:         delayQueue.Data,
-		Queue:        delayQueue.QueueName,
-		Id:           delayQueue.UniqueId,
-		RunAfter:     delayQueue.RunAfter.String(),
-		DelaySeconds: uint64(delayQueue.DelaySeconds),
-	}, nil
+	return &mq.Response{Success: true}, nil
 }
 
 // Subscribe 订阅消息

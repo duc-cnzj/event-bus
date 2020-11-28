@@ -27,16 +27,22 @@ func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 type Interface interface {
 	Ack(string) error
 	Nack(string) error
-	DelayPublish(queueName string, msg Message) (*models.DelayQueue, error)
 
-	ConsumeConfirmQueue()
-	ConsumeAckQueue()
+	DelayPublish(string, Message, uint) error
+
+	RunBackgroundJobs()
+
+	GetDelayPublishProducer() (ProducerInterface, error)
+	GetDelayPublishConsumer() (ConsumerInterface, error)
+	ConsumeDelayPublishQueue()
 
 	GetConfirmProducer() (ProducerInterface, error)
 	GetConfirmConsumer() (ConsumerInterface, error)
+	ConsumeConfirmQueue()
 
 	GetAckQueueProducer() (ProducerInterface, error)
 	GetAckQueueConsumer() (ConsumerInterface, error)
+	ConsumeAckQueue()
 
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
@@ -106,8 +112,7 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
 
 				if h.Config().BackgroundConsumerEnabled {
-					go h.ConsumeConfirmQueue()
-					go h.ConsumeAckQueue()
+					h.RunBackgroundJobs()
 				}
 			case <-h.ctx.Done():
 				log.Info("hub ctx ChannelDone exit")
@@ -168,8 +173,15 @@ func (h *Hub) Nack(uniqueId string) error {
 	return nil
 }
 
+func (h *Hub) ConsumeDelayPublishQueue() {
+	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
+		go h.consumeDelayPublishQueue()
+	}
+	log.Infof("back consume confirm queue started.")
+}
+
 func (h *Hub) ConsumeConfirmQueue() {
-	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
+	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeConfirmQueue()
 	}
 	log.Infof("back consume confirm queue started.")
@@ -213,7 +225,7 @@ func (h *Hub) consumeConfirmQueue() {
 }
 
 func (h *Hub) ConsumeAckQueue() {
-	for i := 0; i < int(h.Config().BackConsumerNum); i++ {
+	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeAckQueue()
 	}
 	log.Infof("back consume ack queue started.")
@@ -256,6 +268,19 @@ func (h *Hub) consumeAckQueue() {
 	}
 }
 
+func (h *Hub) GetDelayPublishConsumer() (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if consumer, err = h.ConsumerManager().GetConsumer(DelayQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
 func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
@@ -267,6 +292,25 @@ func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
 	}
 
 	return consumer, nil
+}
+
+func (h *Hub) RunBackgroundJobs() {
+	go h.ConsumeConfirmQueue()
+	go h.ConsumeAckQueue()
+	go h.ConsumeDelayPublishQueue()
+}
+
+func (h *Hub) GetDelayPublishProducer() (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	if producer, err = h.ProducerManager().GetProducer(DelayQueueName, amqp.ExchangeDirect); err != nil {
+		return nil, err
+	}
+
+	return producer, nil
 }
 
 func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
@@ -437,25 +481,85 @@ func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
-func (h *Hub) DelayPublish(queueName string, msg Message) (*models.DelayQueue, error) {
-	db := h.GetDBConn()
-	startTime := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
+func (h *Hub) DelayPublish(queueName string, msg Message, delaySeconds uint) error {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+	msg.QueueName = queueName
+	msg.DelaySeconds = delaySeconds
+	runAfter := time.Now().Add(time.Duration(delaySeconds) * time.Second)
+	msg.RunAfter = &runAfter
 
-	delayQueue := &models.DelayQueue{
-		Ref:          msg.Ref,
-		UniqueId:     xid.New().String(),
-		RunAfter:     &startTime,
-		DelaySeconds: msg.DelaySeconds,
-		Data:         msg.Data,
-		QueueName:    queueName,
+	if msg.UniqueId == "" {
+		msg.UniqueId = xid.New().String()
 	}
 
-	if err := db.Create(delayQueue).Error; err != nil {
-		return nil, err
+	if producer, err = h.GetDelayPublishProducer(); err != nil {
+		return err
 	}
 
-	log.Debug(delayQueue)
-	return delayQueue, nil
+	if err = producer.Publish(msg); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (h *Hub) consumeDelayPublishQueue() {
+	var (
+		err      error
+		consumer ConsumerInterface
+	)
+
+	defer func() {
+		log.Error("ConsumeDelayPublishQueue EXIT")
+	}()
+
+	if consumer, err = h.GetDelayPublishConsumer(); err != nil {
+		log.Error("err ConsumeDelayPublishQueue()", err)
+		return
+	}
+
+	for {
+		select {
+		case <-consumer.ChannelDone():
+			return
+		case <-h.Done():
+			log.Error("hub done ConsumeConfirmQueue exit.")
+			return
+		case <-h.AmqpConnDone():
+			log.Error("amqp conn done.")
+			return
+		case delivery, ok := <-consumer.Delivery():
+			if !ok {
+				log.Error("not ok")
+				delivery.Nack(false, true)
+				return
+			}
+
+			var (
+				msg = &Message{}
+				err error
+			)
+			if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+				log.Error(err)
+				delivery.Nack(false, true)
+				return
+			}
+			runAfter := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
+
+			h.GetDBConn().Create(&models.DelayQueue{
+				UniqueId:     msg.UniqueId,
+				Data:         msg.Data,
+				QueueName:    msg.QueueName,
+				RunAfter:     &runAfter,
+				DelaySeconds: msg.DelaySeconds,
+				Ref:          msg.Ref,
+			})
+			delivery.Ack(false)
+		}
+	}
 }
 
 func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {

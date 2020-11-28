@@ -46,4 +46,4 @@ EachQueueProducerNum: 3
 # 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列
 BackgroundConsumerEnabled: true
 # 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
-BackConsumerNum: 5
+BackConsumerGoroutineNum: 5

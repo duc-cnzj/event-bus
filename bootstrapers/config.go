@@ -47,7 +47,7 @@ func (c *ConfigLoader) Boot(app *App) {
 		RedisDB:                     viper.GetInt("RedisDB"),
 		EachQueueConsumerNum:        viper.GetInt64("EachQueueConsumerNum"),
 		EachQueueProducerNum:        viper.GetInt64("EachQueueProducerNum"),
-		BackConsumerNum:             viper.GetInt64("BackConsumerNum"),
+		BackConsumerGoroutineNum:    viper.GetInt("BackConsumerGoroutineNum"),
 	}
 	c.printConfig(app)
 	if app.cfg.Debug {
@@ -89,7 +89,7 @@ func (c *ConfigLoader) printConfig(app *App) {
 	log.Warnf(f, "REDIS_DB", cfg.RedisDB)
 	log.Warnf(f, "EachQueueConsumerNum", cfg.EachQueueConsumerNum)
 	log.Warnf(f, "EachQueueProducerNum", cfg.EachQueueProducerNum)
-	log.Warnf(f, "BackConsumerNum", cfg.BackConsumerNum)
+	log.Warnf(f, "BackConsumerGoroutineNum", cfg.BackConsumerGoroutineNum)
 	log.Warn(padding)
 }
 

@@ -37,5 +37,5 @@ data:
 
     EachQueueConsumerNum: {{ default "5" .Values.conf.EachQueueConsumerNum }}
     EachQueueProducerNum: {{ default "2" .Values.conf.EachQueueProducerNum }}
-    BackConsumerNum: {{ default "10" .Values.conf.BackConsumerNum }}
+    BackConsumerGoroutineNum: {{ default "10" .Values.conf.BackConsumerGoroutineNum }}
     BackgroundConsumerEnabled: {{ default true .Values.conf.BackgroundConsumerEnabled }}

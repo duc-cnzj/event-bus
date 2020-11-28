@@ -53,5 +53,5 @@ type Config struct {
 	EachQueueConsumerNum int64
 
 	// 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
-	BackConsumerNum int64
+	BackConsumerGoroutineNum int
 }
