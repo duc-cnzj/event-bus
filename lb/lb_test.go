@@ -20,8 +20,8 @@ func TestNewLoadBalancer(t *testing.T) {
 	for i := 0; i < num; i++ {
 		go func() {
 			defer wg.Done()
-			instance, _ := lb.Get()
 			mu.Lock()
+			instance, _ := lb.Get()
 			result[instance]++
 			mu.Unlock()
 		}()

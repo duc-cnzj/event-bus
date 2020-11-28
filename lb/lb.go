@@ -26,11 +26,11 @@ func (i *Item) Instance() interface{} {
 
 type LoadBalancer struct {
 	removeList []int64
-	total   int
-	new     func(id int64) (interface{}, error)
-	lists   []*Item
-	current int64
-	mu      sync.RWMutex
+	total      int
+	new        func(id int64) (interface{}, error)
+	lists      []*Item
+	current    int64
+	mu         sync.RWMutex
 }
 
 func (l *LoadBalancer) Range(fn func(key int, item *Item)) {
@@ -63,16 +63,21 @@ func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {
 	wg.Wait()
 
 	l.lists = nil
+	l.initRemoveList()
 }
 
 func NewLoadBalancer(total int, new func(id int64) (interface{}, error)) *LoadBalancer {
-	lb:= &LoadBalancer{total: total, new: new, current: -1}
+	lb := &LoadBalancer{total: total, new: new, current: -1}
 
-	for i := 0; i < total; i++ {
-		lb.removeList = append(lb.removeList, int64(i))
-	}
+	lb.initRemoveList()
 
 	return lb
+}
+
+func (l *LoadBalancer) initRemoveList() {
+	for i := 0; i < l.total; i++ {
+		l.removeList = append(l.removeList, int64(i))
+	}
 }
 
 func (l *LoadBalancer) Get() (*Item, error) {
@@ -125,8 +130,6 @@ func (l *LoadBalancer) Remove(id int64) {
 			l.lists = append(l.lists[0:index], l.lists[index+1:]...)
 			if int(l.current)%l.total == index && l.current > -1 {
 				atomic.AddInt64(&l.current, -1)
-			} else {
-				atomic.StoreInt64(&l.current, -1)
 			}
 			return
 		}

@@ -7,6 +7,7 @@ require (
 	github.com/go-redis/redis/v8 v8.3.4
 	github.com/gofiber/fiber/v2 v2.2.0
 	github.com/golang/protobuf v1.4.3
+	github.com/json-iterator/go v1.1.10
 	github.com/robfig/cron/v3 v3.0.0
 	github.com/rs/xid v1.2.1
 	github.com/sirupsen/logrus v1.7.0

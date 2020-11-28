@@ -3,7 +3,7 @@ package hub
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	json "github.com/json-iterator/go"
 	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -463,11 +463,12 @@ func (h *Hub) Close() {
 
 		log.Info("hub amqp conn closing.")
 		timeout, cancelFunc := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancelFunc()
 		go func() {
 			if err = h.amqpConn.Close(); err != nil {
 				log.Error(err)
 			}
+			cancelFunc()
+			log.Println("amqp 正常退出")
 		}()
 		log.Info("wait amqp conn done....")
 		<-timeout.Done()

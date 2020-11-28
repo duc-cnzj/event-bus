@@ -2,8 +2,8 @@ package hub
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
+	json "github.com/json-iterator/go"
 	"mq/config"
 	"time"
 
