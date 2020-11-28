@@ -45,8 +45,8 @@ func (c *ConfigLoader) Boot(app *App) {
 		RedisPassword:               viper.GetString("RedisPassword"),
 		RedisUsername:               viper.GetString("RedisUsername"),
 		RedisDB:                     viper.GetInt("RedisDB"),
-		EachQueueConsumerNum:        viper.GetInt64("EachQueueConsumerNum"),
-		EachQueueProducerNum:        viper.GetInt64("EachQueueProducerNum"),
+		EachQueueConsumerNum:        viper.GetInt("EachQueueConsumerNum"),
+		EachQueueProducerNum:        viper.GetInt("EachQueueProducerNum"),
 		BackConsumerGoroutineNum:    viper.GetInt("BackConsumerGoroutineNum"),
 	}
 	c.printConfig(app)

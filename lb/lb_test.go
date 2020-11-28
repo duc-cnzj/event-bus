@@ -47,14 +47,17 @@ func TestLoadBalancer_Remove(t *testing.T) {
 
 	lb.Remove(0)
 	lb.Remove(10)
+	lb.Remove(1)
+	lb.Remove(2)
 
 	for i := 0; i < 1000; i++ {
 		lb.Get()
 	}
 
 	for _, list := range lb.lists {
-		fmt.Println(list)
+		fmt.Println(list.id)
 	}
+	fmt.Println(lb.current)
 }
 
 func TestLoadBalancer_RemoveWithCallbackError(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 var ErrorServerUnavailable = status.Errorf(codes.Unavailable, "server unavailable")
 var ErrorAmqpConnClosed = errors.New("amqp conn closed")
 var ErrorAlreadyAcked = errors.New("already acked")
+var ErrorHubDone = errors.New("already acked")
 
 var DefaultExchange = "event_bus_default_exchange"
 var AckQueueName = "event_bus_ack_queue"

@@ -25,7 +25,8 @@ func (i *Item) Instance() interface{} {
 }
 
 type LoadBalancer struct {
-	total   int64
+	removeList []int64
+	total   int
 	new     func(id int64) (interface{}, error)
 	lists   []*Item
 	current int64
@@ -64,8 +65,14 @@ func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {
 	l.lists = nil
 }
 
-func NewLoadBalancer(total int64, new func(id int64) (interface{}, error)) *LoadBalancer {
-	return &LoadBalancer{total: total, new: new, current: -1}
+func NewLoadBalancer(total int, new func(id int64) (interface{}, error)) *LoadBalancer {
+	lb:= &LoadBalancer{total: total, new: new, current: -1}
+
+	for i := 0; i < total; i++ {
+		lb.removeList = append(lb.removeList, int64(i))
+	}
+
+	return lb
 }
 
 func (l *LoadBalancer) Get() (*Item, error) {
@@ -77,7 +84,8 @@ func (l *LoadBalancer) Get() (*Item, error) {
 	defer l.mu.Unlock()
 
 	current := atomic.AddInt64(&l.current, 1)
-	next := current % l.total
+	next := current % int64(l.total)
+	atomic.StoreInt64(&l.current, next)
 
 	if int64(len(l.lists)-1) >= next {
 		return l.lists[next], nil
@@ -90,11 +98,22 @@ func (l *LoadBalancer) Get() (*Item, error) {
 	}
 
 	l.lists = append(l.lists, &Item{
-		id:       current,
+		id:       l.getId(),
 		instance: newOne,
 	})
 
 	return l.lists[next], nil
+}
+
+func (l *LoadBalancer) getId() int64 {
+	if len(l.removeList) > 0 {
+		id := l.removeList[0]
+		l.removeList = l.removeList[1:]
+
+		return id
+	}
+
+	panic("err")
 }
 
 func (l *LoadBalancer) Remove(id int64) {
@@ -102,8 +121,9 @@ func (l *LoadBalancer) Remove(id int64) {
 	defer l.mu.Unlock()
 	for index, list := range l.lists {
 		if list.id == id {
+			l.removeList = append(l.removeList, id)
 			l.lists = append(l.lists[0:index], l.lists[index+1:]...)
-			if int(l.current%l.total) == index && l.current > -1 {
+			if int(l.current)%l.total == index && l.current > -1 {
 				atomic.AddInt64(&l.current, -1)
 			} else {
 				atomic.StoreInt64(&l.current, -1)

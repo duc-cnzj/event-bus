@@ -47,10 +47,10 @@ type Config struct {
 	DBPassword string
 
 	// 每个队列的消费者数量
-	EachQueueProducerNum int64
+	EachQueueProducerNum int
 
 	// 每个队列的生产者数量
-	EachQueueConsumerNum int64
+	EachQueueConsumerNum int
 
 	// 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
 	BackConsumerGoroutineNum int

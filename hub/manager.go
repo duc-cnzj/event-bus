@@ -48,8 +48,8 @@ func (pm *ProducerManager) GetProducer(queueName, kind string) (ProducerInterfac
 
 	loadBalancer := lb.NewLoadBalancer(pm.hub.Config().EachQueueProducerNum, func(id int64) (interface{}, error) {
 		select {
-		case <-pm.hub.AmqpConnDone():
-			return nil, ErrorAmqpConnClosed
+		case <-pm.hub.Done():
+			return nil, ErrorHubDone
 		default:
 			switch kind {
 			case amqp.ExchangeDirect:
@@ -160,8 +160,8 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterfac
 
 	loadBalancer := lb.NewLoadBalancer(cm.hub.Config().EachQueueConsumerNum, func(id int64) (interface{}, error) {
 		select {
-		case <-cm.hub.AmqpConnDone():
-			return nil, ErrorAmqpConnClosed
+		case <-cm.hub.Done():
+			return nil, ErrorHubDone
 		default:
 			switch kind {
 			case amqp.ExchangeDirect:

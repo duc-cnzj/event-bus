@@ -56,14 +56,15 @@ type Interface interface {
 	CloseAllConsumer()
 	CloseAllProducer()
 
+	// todo remove
 	GetAmqpConn() (*amqp.Connection, error)
+
 	GetDBConn() *gorm.DB
 
 	IsClosed() bool
 	Close()
 
 	Done() <-chan struct{}
-	AmqpConnDone() <-chan *amqp.Error
 
 	Config() *config.Config
 }
@@ -98,10 +99,12 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	h.pm = NewProducerManager(h)
 	h.cm = NewConsumerManager(h)
 
+	h.listenAmqpConnDone()
+
 	go func() {
 		for {
 			select {
-			case <-h.AmqpConnDone():
+			case <-h.notifyConnClose:
 				if h.IsClosed() {
 					return
 				}
@@ -110,7 +113,10 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				log.Error("amqp 开始重连")
 				h.amqpConn = conn2.ReConnect(h.Config().AmqpUrl)
 				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
-
+				cancel, cancelFunc := context.WithCancel(context.Background())
+				h.ctx = cancel
+				h.cancel = cancelFunc
+				h.listenAmqpConnDone()
 				if h.Config().BackgroundConsumerEnabled {
 					h.RunBackgroundJobs()
 				}
@@ -209,9 +215,6 @@ func (h *Hub) consumeConfirmQueue() {
 		case <-h.Done():
 			log.Error("hub done ConsumeConfirmQueue exit.")
 			return
-		case <-h.AmqpConnDone():
-			log.Error("amqp conn done.")
-			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
 				log.Error("not ok")
@@ -252,9 +255,6 @@ func (h *Hub) consumeAckQueue() {
 			return
 		case <-h.Done():
 			log.Error("hub done ConsumeAckQueue exit.")
-			return
-		case <-h.AmqpConnDone():
-			log.Error("amqp conn done.")
 			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
@@ -352,10 +352,6 @@ func (h *Hub) GetAckQueueProducer() (ProducerInterface, error) {
 	return producer, nil
 }
 
-func (h *Hub) AmqpConnDone() <-chan *amqp.Error {
-	return h.notifyConnClose
-}
-
 func (h *Hub) GetDBConn() *gorm.DB {
 	return h.db
 }
@@ -418,6 +414,19 @@ func (h *Hub) CloseAllConsumer() {
 
 func (h *Hub) CloseAllProducer() {
 	h.ProducerManager().CloseAll()
+}
+
+func (h *Hub) listenAmqpConnDone() {
+	go func() {
+		defer log.Warn("listenAmqpConnDone EXIT.")
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-h.notifyConnClose:
+			h.cancel()
+			log.Warn("amqp done cancel().")
+		}
+	}()
 }
 
 func (h *Hub) Done() <-chan struct{} {
@@ -527,9 +536,6 @@ func (h *Hub) consumeDelayPublishQueue() {
 			return
 		case <-h.Done():
 			log.Error("hub done ConsumeConfirmQueue exit.")
-			return
-		case <-h.AmqpConnDone():
-			log.Error("amqp conn done.")
 			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {

@@ -31,7 +31,7 @@ var consumeCmd = &cobra.Command{
 		}
 
 		h := hub.NewHub(mqConn, app.Config(), app.DB())
-		h.Config().EachQueueConsumerNum = int64(testConsumerNum)
+		h.Config().EachQueueConsumerNum = testConsumerNum
 		log.Infof("consumer num: %d queue %s", testConsumerNum, testQueueName)
 
 		for i := 0; i < testConsumerNum; i++ {

@@ -37,7 +37,7 @@ var produceCmd = &cobra.Command{
 		_, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		h := hub.NewHub(mqConn, app.Config(), app.DB())
-		h.Config().EachQueueProducerNum = int64(testProducerNum)
+		h.Config().EachQueueProducerNum = testProducerNum
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
 
 		for i := 0; i < testProducerNum; i++ {

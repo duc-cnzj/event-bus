@@ -60,8 +60,6 @@ func (d *DirectProducer) Publish(message Message) error {
 	select {
 	case <-d.ChannelDone():
 		return ErrorServerUnavailable
-	case <-d.hub.AmqpConnDone():
-		return ErrorServerUnavailable
 	case <-d.hub.Done():
 		return ErrorServerUnavailable
 	default:
@@ -230,7 +228,6 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 		select {
 		case <-d.ChannelDone():
 		case <-d.hub.Done():
-		case <-d.hub.AmqpConnDone():
 		}
 	}()
 
@@ -245,7 +242,7 @@ func (d *DirectProducer) Close() {
 	d.RemoveSelf()
 	select {
 	case <-d.ChannelDone():
-	case <-d.hub.AmqpConnDone():
+	case <-d.hub.Done():
 	default:
 	}
 	if err := d.channel.Close(); err != nil {
@@ -316,9 +313,6 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	select {
 	case <-d.hub.Done():
 		log.Debug("hub done")
-		return nil, ErrorServerUnavailable
-	case <-d.hub.AmqpConnDone():
-		log.Debug("server amqp done")
 		return nil, ErrorServerUnavailable
 	case <-ctx.Done():
 		log.Debug("Consume client done")
@@ -520,8 +514,6 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 		case <-d.hub.Done():
 			log.Info("new consumer hub ctx done")
 		case <-d.ChannelDone():
-		case <-d.hub.AmqpConnDone():
-			log.Info("hub.notifyConnClose consumer")
 		}
 	}()
 
@@ -535,7 +527,7 @@ func (d *DirectConsumer) Close() {
 	}
 	d.RemoveSelf()
 	select {
-	case <-d.hub.AmqpConnDone():
+	case <-d.hub.Done():
 	case <-d.ChannelDone():
 	default:
 	}
