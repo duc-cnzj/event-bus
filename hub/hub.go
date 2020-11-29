@@ -101,30 +101,7 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 
 	h.listenAmqpConnDone()
 
-	go func() {
-		for {
-			select {
-			case <-h.notifyConnClose:
-				if h.IsClosed() {
-					return
-				}
-				log.Error("amqp 连接断开")
-				h.amqpConn.Close()
-				log.Error("amqp 开始重连")
-				h.amqpConn = conn2.ReConnect(h.Config().AmqpUrl)
-				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
-				cancel, cancelFunc := context.WithCancel(context.Background())
-				h.ctx = cancel
-				h.cancel = cancelFunc
-				h.listenAmqpConnDone()
-				h.pm = NewProducerManager(h)
-				h.cm = NewConsumerManager(h)
-				if h.Config().BackgroundConsumerEnabled {
-					h.RunBackgroundJobs()
-				}
-			}
-		}
-	}()
+	h.listenAmqpCloseAndReconnect()
 
 	return h
 }
@@ -415,19 +392,6 @@ func (h *Hub) CloseAllProducer() {
 	h.ProducerManager().CloseAll()
 }
 
-func (h *Hub) listenAmqpConnDone() {
-	go func() {
-		defer log.Warn("listenAmqpConnDone EXIT.")
-		select {
-		case <-h.ctx.Done():
-			return
-		case <-h.notifyConnClose:
-			h.cancel()
-			log.Warn("amqp done cancel().")
-		}
-	}()
-}
-
 func (h *Hub) Done() <-chan struct{} {
 	return h.ctx.Done()
 }
@@ -645,4 +609,44 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			Ref:         msg.Ref,
 		})
 	}
+}
+
+func (h *Hub) listenAmqpConnDone() {
+	go func() {
+		defer log.Warn("listenAmqpConnDone EXIT.")
+		select {
+		case <-h.ctx.Done():
+			return
+		case <-h.notifyConnClose:
+			h.cancel()
+			log.Warn("amqp done cancel().")
+		}
+	}()
+}
+
+func (h *Hub) listenAmqpCloseAndReconnect() {
+	go func() {
+		for {
+			select {
+			case <-h.Done():
+				if h.IsClosed() {
+					return
+				}
+				log.Error("amqp 连接断开")
+				h.amqpConn.Close()
+				log.Error("amqp 开始重连")
+				h.amqpConn = conn2.ReConnect(h.Config().AmqpUrl)
+				h.notifyConnClose = h.amqpConn.NotifyClose(make(chan *amqp.Error))
+				cancel, cancelFunc := context.WithCancel(context.Background())
+				h.ctx = cancel
+				h.cancel = cancelFunc
+				h.listenAmqpConnDone()
+				h.pm = NewProducerManager(h)
+				h.cm = NewConsumerManager(h)
+				if h.Config().BackgroundConsumerEnabled {
+					h.RunBackgroundJobs()
+				}
+			}
+		}
+	}()
 }
