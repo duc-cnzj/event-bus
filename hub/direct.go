@@ -283,8 +283,8 @@ func (d *DirectConsumer) Nack(uniqueId string) error {
 	return d.hub.Nack(uniqueId)
 }
 
-func (d *DirectConsumer) Delivery() <-chan amqp.Delivery {
-	return d.delivery
+func (d *DirectConsumer) Delivery() chan amqp.Delivery {
+	return d.cm.Delivery(d.queueName, d.kind)
 }
 
 func (d *DirectConsumer) GetConn() *amqp.Connection {
@@ -317,7 +317,7 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	case <-ctx.Done():
 		log.Debug("Consume client done")
 		return nil, errors.New("client done")
-	case data, ok := <-d.delivery:
+	case data, ok := <-d.Delivery():
 		if !ok {
 			data.Nack(false, true)
 
@@ -514,6 +514,25 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 		case <-d.hub.Done():
 			log.Info("new consumer hub ctx done")
 		case <-d.ChannelDone():
+		}
+	}()
+
+	go func() {
+		defer log.Warnf("go Delivery EXIT %d", d.GetId())
+		log.Infof("consumer %d 往公共 Delivery 推消息", d.GetId())
+		for {
+			select {
+			case data, ok := <-d.delivery:
+				if !ok {
+					return
+				}
+
+				d.Delivery() <- data
+			case <-d.hub.Done():
+				return
+			case <-d.ChannelDone():
+				return
+			}
 		}
 	}()
 

@@ -124,19 +124,33 @@ func (pm *ProducerManager) getKey(queueName, kind string) string {
 type ConsumerManagerInterface interface {
 	GetConsumer(queueName, kind string) (ConsumerInterface, error)
 	RemoveConsumer(ConsumerInterface)
+	Delivery(queueName string, kind string) chan amqp.Delivery
 	CloseAll()
 	Count() int
 	Print()
 }
 
 type ConsumerManager struct {
-	hub       Interface
-	mu        sync.RWMutex
-	consumers sync.Map
+	hub         Interface
+	mu          sync.RWMutex
+	consumers   sync.Map
+	deliveryMap sync.Map
 }
 
 func NewConsumerManager(hub *Hub) *ConsumerManager {
 	return &ConsumerManager{hub: hub}
+}
+
+func (cm *ConsumerManager) Delivery(queueName, kind string) chan amqp.Delivery {
+	key := cm.getKey(queueName, kind)
+	if load, ok := cm.deliveryMap.Load(key); ok {
+		return load.(chan amqp.Delivery)
+	}
+
+	ch := make(chan amqp.Delivery)
+	cm.deliveryMap.Store(key, ch)
+
+	return ch
 }
 
 func (cm *ConsumerManager) GetConsumer(queueName, kind string) (ConsumerInterface, error) {
@@ -223,7 +237,7 @@ func (cm *ConsumerManager) Print() {
 	cm.consumers.Range(func(key, value interface{}) bool {
 		value.(lb.LoadBalancerInterface).Range(func(key int, item *lb.Item) {
 			c := item.Instance().(ConsumerInterface)
-			log.Infof("key %d queue %s id %d", key, c.GetQueueName(), c.GetId())
+			log.Infof("key %d queue %s id %d.", key, c.GetQueueName(), c.GetId())
 		})
 		return true
 	})

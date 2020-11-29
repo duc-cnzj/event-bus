@@ -117,6 +117,8 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				h.ctx = cancel
 				h.cancel = cancelFunc
 				h.listenAmqpConnDone()
+				h.pm = NewProducerManager(h)
+				h.cm = NewConsumerManager(h)
 				if h.Config().BackgroundConsumerEnabled {
 					h.RunBackgroundJobs()
 				}

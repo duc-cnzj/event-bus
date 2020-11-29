@@ -16,7 +16,7 @@ type ConsumerInterface interface {
 	Nack(string) error
 	Close()
 	ChannelDone() chan *amqp.Error
-	Delivery() <-chan amqp.Delivery
+	Delivery() chan amqp.Delivery
 }
 
 type ConsumerBase struct {
