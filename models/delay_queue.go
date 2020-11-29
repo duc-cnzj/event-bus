@@ -17,5 +17,5 @@ type DelayQueue struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	DeletedAt gorm.DeletedAt `gorm:"index:run_after_deleted_at_idx;"`
+	DeletedAt gorm.DeletedAt `gorm:"index;index:run_after_deleted_at_idx;"`
 }

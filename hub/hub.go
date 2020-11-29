@@ -120,9 +120,6 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 				if h.Config().BackgroundConsumerEnabled {
 					h.RunBackgroundJobs()
 				}
-			case <-h.ctx.Done():
-				log.Info("hub ctx ChannelDone exit")
-				return
 			}
 		}
 	}()

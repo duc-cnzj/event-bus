@@ -2,7 +2,6 @@ package lb
 
 import (
 	"sync"
-	"sync/atomic"
 )
 
 var _ LoadBalancerInterface = (*LoadBalancer)(nil)
@@ -49,7 +48,7 @@ func (l *LoadBalancer) Count() int {
 func (l *LoadBalancer) RemoveAll(fn func(id int64, instance interface{})) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	atomic.StoreInt64(&l.current, -1)
+	l.current = -1
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(l.lists))
@@ -75,8 +74,9 @@ func NewLoadBalancer(total int, new func(id int64) (interface{}, error)) *LoadBa
 }
 
 func (l *LoadBalancer) initRemoveList() {
+	l.removeList = make([]int64, l.total)
 	for i := 0; i < l.total; i++ {
-		l.removeList = append(l.removeList, int64(i))
+		l.removeList[i] = int64(i)
 	}
 }
 
@@ -85,19 +85,20 @@ func (l *LoadBalancer) Get() (*Item, error) {
 		err    error
 		newOne interface{}
 	)
+
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	current := atomic.AddInt64(&l.current, 1)
+	current := l.current + 1
 	next := current % int64(l.total)
-	atomic.StoreInt64(&l.current, next)
+	l.current = next
 
 	if int64(len(l.lists)-1) >= next {
 		return l.lists[next], nil
 	}
 
 	if newOne, err = l.new(current); err != nil {
-		atomic.AddInt64(&l.current, -1)
+		l.current -= 1
 
 		return nil, err
 	}
@@ -129,7 +130,7 @@ func (l *LoadBalancer) Remove(id int64) {
 			l.removeList = append(l.removeList, id)
 			l.lists = append(l.lists[0:index], l.lists[index+1:]...)
 			if int(l.current)%l.total == index && l.current > -1 {
-				atomic.AddInt64(&l.current, -1)
+				l.current -= 1
 			}
 			return
 		}

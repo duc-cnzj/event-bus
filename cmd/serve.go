@@ -244,7 +244,6 @@ func runCron(h hub.Interface) *cron.Cron {
 								if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 									return
 								}
-								app.DB().Delete(&queue)
 
 								if queue.Nackd() {
 									if err := h.DelayPublish(
@@ -268,6 +267,8 @@ func runCron(h hub.Interface) *cron.Cron {
 										return
 									}
 								}
+
+								app.DB().Delete(&queue)
 							}
 						}
 					}()

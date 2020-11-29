@@ -10,7 +10,7 @@ type Queue struct {
 
 	UniqueId string `json:"unique_id" gorm:"not null;index:unique_id_idx,unique;type:string;"`
 
-	DeletedAt   gorm.DeletedAt `gorm:"index:republish_idx;"`
+	DeletedAt   gorm.DeletedAt `gorm:"index;index:republish_idx;"`
 	AckedAt     *time.Time     `json:"acked_at" gorm:"index:republish_idx;"`
 	NAckedAt    *time.Time     `json:"nacked_at" gorm:"column:nacked_at;index:nacked_at_idx;"`
 	ConfirmedAt *time.Time     `json:"confirmed_at" gorm:"index:republish_idx;"`
