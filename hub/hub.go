@@ -137,7 +137,7 @@ func (h *Hub) Ack(uniqueId string) error {
 		return err
 	}
 
-	if err = producer.Publish(Message{UniqueId: uniqueId}); err != nil {
+	if err = producer.Publish(Message{UniqueId: uniqueId, AckedAt: time.Now()}); err != nil {
 		return err
 	}
 
@@ -589,7 +589,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
 				}).Create(&models.Queue{
 					UniqueId: msg.UniqueId,
-					AckedAt:  &now,
+					AckedAt:  &msg.AckedAt,
 				})
 			} else {
 				db.Clauses(clause.OnConflict{
@@ -632,7 +632,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	}
 
 	if ackMsg {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &now})
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt})
 	} else {
 		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 			RetryTimes:  msg.RetryTimes,

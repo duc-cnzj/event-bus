@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"gorm.io/gorm"
 	"mq/adapter"
 	"mq/conn"
 	"mq/hub"
@@ -203,15 +204,32 @@ func runCron(h hub.Interface) *cron.Cron {
 				log.Debug("[SUCCESS]: cron republish")
 
 				var (
-					queues   []*models.Queue
-					producer hub.ProducerInterface
-					err      error
+					queues        []*models.Queue
+					producer      hub.ProducerInterface
+					err           error
+					lastAckdQueue models.Queue
+					runtimeDelay  time.Duration
 				)
+
+				// 获取最近队列延迟的时差
+				if err = app.DB().Where("acked_at is not null").Where("updated_at < ?", time.Now().Add(-time.Minute*5)).Order("id DESC").First(&lastAckdQueue).Error; err != nil {
+					if err != gorm.ErrRecordNotFound {
+						log.Error(err)
+					}
+				} else {
+					runtimeDelay = time.Second * time.Duration(lastAckdQueue.UpdatedAt.Sub(*lastAckdQueue.AckedAt).Seconds())
+				}
+
+				if runtimeDelay > time.Minute*30 {
+					runtimeDelay = time.Minute * 30
+				}
+
+				log.Debug("runtimeDelay", runtimeDelay, time.Now().Add(-runtimeDelay))
 
 				if err = app.DB().Where("retry_times < ?", app.Config().RetryTimes).
 					Where("acked_at is null").
 					Where("confirmed_at is not null").
-					Where("run_after <= ?", time.Now()).
+					Where("run_after <= ?", time.Now().Add(-runtimeDelay)).
 					Limit(10000).
 					Find(&queues).
 					Error; err != nil {

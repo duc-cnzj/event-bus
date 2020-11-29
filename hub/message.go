@@ -18,6 +18,7 @@ type Message struct {
 	RunAfter     *time.Time `json:"run_after"`
 	DelaySeconds uint       `json:"delay_seconds"`
 	QueueName    string     `json:"queue_name"`
+	AckedAt      time.Time  `json:"acked_at"`
 }
 
 func (m *Message) GetUniqueId() string {
