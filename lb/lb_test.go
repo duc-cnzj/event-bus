@@ -14,7 +14,7 @@ func TestNewLoadBalancer(t *testing.T) {
 	mu := sync.Mutex{}
 	var result = map[interface{}]int{}
 
-	wg := sync.WaitGroup{}
+	wg := &sync.WaitGroup{}
 	num := 200000
 	wg.Add(num)
 	for i := 0; i < num; i++ {
@@ -26,6 +26,7 @@ func TestNewLoadBalancer(t *testing.T) {
 			mu.Unlock()
 		}()
 	}
+	wg.Wait()
 	fmt.Println(result)
 	for _, n := range result {
 		if n != num/10 {
