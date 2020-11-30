@@ -561,7 +561,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			} else {
 				db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
+					DoUpdates: clause.AssignmentColumns([]string{"run_after", "retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
 				}).Create(&models.Queue{
 					UniqueId:    msg.UniqueId,
 					RetryTimes:  msg.RetryTimes,

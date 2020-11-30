@@ -208,7 +208,7 @@ func runCron(h hub.Interface) *cron.Cron {
 					lockList.Delete(lock.GetCurrentOwner())
 					lock.Release()
 					if len(queues) > 0 {
-						log.Infof("SUCCESS consume publish len: %d , time is %s", len(queues), time.Since(t))
+						log.Infof("SUCCESS consume republish len: %d , time is %s", len(queues), time.Since(t))
 					}
 				}(time.Now())
 
