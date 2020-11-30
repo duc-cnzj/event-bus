@@ -46,3 +46,10 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 ## TODO
 
 1. 关闭长时间没用的连接
+
+## test case
+
+1. 普通队列/延迟队列：持续压测关注 qos 情况
+2. 消费时重启 mq、重启 event-bus，查看数据是否有丢失
+3. 后台 job: `republish` `delay publish` 的处理速率
+4. 后台 `event_bus_ack_queue` 、 `event_bus_confirm_queue` 、`delay publish` 处理速率
