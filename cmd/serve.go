@@ -229,8 +229,8 @@ func runCron(h hub.Interface) *cron.Cron {
 				}
 
 				if runtimeDelay > time.Minute*30 {
+					log.Warnf("消费队列延迟超过 %s > 30m 请注意!", runtimeDelay.String())
 					runtimeDelay = time.Minute * 30
-					log.Warnf("消费队列延迟超过 %s 请注意!", runtimeDelay.String())
 				}
 
 				log.Debug("runtimeDelay", runtimeDelay, time.Now().Add(-runtimeDelay))
