@@ -215,7 +215,12 @@ func runCron(h hub.Interface) *cron.Cron {
 				log.Debug("[SUCCESS]: cron republish")
 
 				// 获取最近队列延迟的时差
-				if err = app.DB().Where("acked_at is not null").Where("updated_at < ?", time.Now().Add(-time.Minute*5)).Order("id DESC").First(&lastAckdQueue).Error; err != nil {
+				if err = app.DB().
+					Where("status = ?", models.StatusAcked).
+					Where("is_confirmed = true").
+					Where("updated_at < ?", time.Now().Add(-time.Minute*5)).
+					Order("id DESC").
+					First(&lastAckdQueue).Error; err != nil {
 					if err != gorm.ErrRecordNotFound {
 						log.Error(err)
 					}
@@ -230,9 +235,10 @@ func runCron(h hub.Interface) *cron.Cron {
 
 				log.Debug("runtimeDelay", runtimeDelay, time.Now().Add(-runtimeDelay))
 
-				if err = app.DB().Where("retry_times < ?", app.Config().RetryTimes).
-					Where("acked_at is null").
-					Where("confirmed_at is not null").
+				if err = app.DB().
+					Where("is_confirmed = true").
+					Where("status in (?, ?)", models.StatusNacked, models.StatusUnknown).
+					Where("retry_times < ?", app.Config().RetryTimes).
 					Where("run_after <= ?", time.Now().Add(-runtimeDelay)).
 					Limit(10000).
 					Find(&queues).

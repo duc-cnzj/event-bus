@@ -135,7 +135,8 @@ func (h *Hub) Nack(uniqueId string) error {
 				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after"}),
 			}).Create(&models.Queue{
 				UniqueId: uniqueId,
-				NAckedAt: &now,
+				NackedAt: &now,
+				Status:   models.StatusNacked,
 				RunAfter: &now,
 			})
 		}
@@ -149,7 +150,7 @@ func (h *Hub) Nack(uniqueId string) error {
 		return ErrorAlreadyAcked
 	}
 
-	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NAckedAt: &now, RunAfter: &now})
+	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked})
 
 	return nil
 }
@@ -555,11 +556,12 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 				}).Create(&models.Queue{
 					UniqueId: msg.UniqueId,
 					AckedAt:  &msg.AckedAt,
+					Status:   models.StatusAcked,
 				})
 			} else {
 				db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref"}),
+					DoUpdates: clause.AssignmentColumns([]string{"retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
 				}).Create(&models.Queue{
 					UniqueId:    msg.UniqueId,
 					RetryTimes:  msg.RetryTimes,
@@ -568,6 +570,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 					QueueName:   msg.QueueName,
 					RunAfter:    msg.RunAfter,
 					Ref:         msg.Ref,
+					IsConfirmed: true,
 				})
 			}
 		} else {
@@ -582,7 +585,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	}
 
 	if queue.Nackd() {
-		if !ackMsg {
+		if !queue.Confirmed() {
 			db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 				RetryTimes:  msg.RetryTimes,
 				ConfirmedAt: &now,
@@ -590,14 +593,15 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 				QueueName:   msg.QueueName,
 				RunAfter:    msg.RunAfter,
 				Ref:         msg.Ref,
+				IsConfirmed: true,
 			})
 		}
-		log.Warn("queue status", queue.NAckedAt)
+		log.Warn("queue status", queue.NackedAt)
 		return
 	}
 
 	if ackMsg {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt})
+		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt, Status: models.StatusAcked})
 	} else {
 		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 			RetryTimes:  msg.RetryTimes,
@@ -606,6 +610,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			QueueName:   msg.QueueName,
 			RunAfter:    msg.RunAfter,
 			Ref:         msg.Ref,
+			IsConfirmed: true,
 		})
 	}
 }
