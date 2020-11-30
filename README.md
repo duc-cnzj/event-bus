@@ -3,10 +3,10 @@
 ## feature
 
 1. 秒级延迟队列
-2. grpc 任意语言接入
+2. grpc 任意客户端语言接入
 3. 消息重试机制
 4. 分布式锁
-5. 高性能
+5. 高性能： 生产消费的瓶颈 = `rabbitmq` 本身生产消费的瓶颈
 6. 断线重连(60s)
 
 ## v1 架构
@@ -20,7 +20,63 @@
 ## Usage
 
 ```shell script
- dk run --rm -v $(pwd)/config.yaml:/config.yaml duccnzj/mq-event-bus
+ dk run --rm -v $(pwd)/config.yaml:/config.yaml registry.cn-hangzhou.aliyuncs.com/duc-cnzj/event-bus
+```
+
+## Configuration
+
+```yaml
+Debug: false
+PrintConfig: false
+
+# 重试次数
+RetryTimes: 3
+
+# 分布式锁加锁时长
+DLMExpiration: 1800
+
+# 每个job最大执行时间
+MaxJobRunningSeconds: 1800
+
+# nackd 之后重新推送的延迟时间
+NackdJobNextRunDelaySeconds: 600
+
+# nack 以及 未消费队列重新推送定时任务(cronjob)
+CronRepublishEnabled: true
+
+# 延迟队列定时任务(cronjob)
+CronDelayPublishEnabled: true
+
+# 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列, 保持默认 `true` 就行
+BackgroundConsumerEnabled: true
+
+# 后台 event_bus_ack_queue  event_bus_confirm_queue 定时任务 的协程数量
+# 默认 10 个就行了，根据数据库处理能力定, BackgroundConsumerEnabled 为 false 不执行
+BackConsumerGoroutineNum: 20
+
+AmqpUrl: amqp://guest:guest@localhost:5672/
+PrefetchCount: 0
+HttpPort: 7878
+RpcPort: 9091
+
+# redis
+RedisAddr: localhost:6379
+RedisDB: 0
+RedisUsername:
+RedisPassword:
+
+# DATABASE
+DB_HOST: 127.0.0.1
+DB_PORT: 3306
+DB_DATABASE: mq_v2
+DB_USERNAME: root
+DB_PASSWORD:
+
+# 每个队列的消费者数量
+EachQueueConsumerNum: 5
+
+# 每个队列的生产者数量
+EachQueueProducerNum: 2
 ```
 
 ## SDK
