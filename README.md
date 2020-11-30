@@ -1,9 +1,5 @@
 # 微服务消息总线
 
-## 生产过快导致消费缓慢
-
-https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
-
 ## feature
 
 1. 秒级延迟队列
@@ -60,3 +56,7 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 2. 各种有可能丢数据的骚操作，会不会真的丢数据
 3. 是否存在内存泄露的情况
 4. 数据库可能出现连接过多的问题，注意数据库的最大连接数
+
+## 生产过快导致消费缓慢
+
+https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
