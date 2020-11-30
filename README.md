@@ -116,3 +116,7 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 ## 生产过快导致消费缓慢
 
 https://www.rabbitmq.com/blog/2011/09/24/sizing-your-rabbits/
+
+## 注意事项
+
+1. 关注数据库的最大连接数，防止 `too many connections` 错误导致入库失败 
