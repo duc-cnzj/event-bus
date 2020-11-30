@@ -195,14 +195,6 @@ func runCron(h hub.Interface) *cron.Cron {
 		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(app.Redis(), "republish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
-				lockList.Store(lock.GetCurrentOwner(), lock)
-				defer func() {
-					lockList.Delete(lock.GetCurrentOwner())
-					lock.Release()
-				}()
-
-				log.Debug("[SUCCESS]: cron republish")
-
 				var (
 					queues        []*models.Queue
 					producer      hub.ProducerInterface
@@ -210,6 +202,17 @@ func runCron(h hub.Interface) *cron.Cron {
 					lastAckdQueue models.Queue
 					runtimeDelay  time.Duration
 				)
+
+				lockList.Store(lock.GetCurrentOwner(), lock)
+				defer func(t time.Time) {
+					lockList.Delete(lock.GetCurrentOwner())
+					lock.Release()
+					if len(queues) > 0 {
+						log.Infof("SUCCESS consume publish len: %d , time is %s", len(queues), time.Since(t))
+					}
+				}(time.Now())
+
+				log.Debug("[SUCCESS]: cron republish")
 
 				// 获取最近队列延迟的时差
 				if err = app.DB().Where("acked_at is not null").Where("updated_at < ?", time.Now().Add(-time.Minute*5)).Order("id DESC").First(&lastAckdQueue).Error; err != nil {
@@ -299,9 +302,8 @@ func runCron(h hub.Interface) *cron.Cron {
 					close(ch)
 				}()
 				wg.Wait()
-				log.Info("SUCCESS consume publish")
 			} else {
-				log.Warning("republish: Acquire Fail!")
+				log.Debug("republish: Acquire Fail!")
 
 				return
 			}
@@ -314,17 +316,22 @@ func runCron(h hub.Interface) *cron.Cron {
 		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(app.Redis(), "delay publish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
-				lockList.Store(lock.GetCurrentOwner(), lock)
-				defer func() {
-					lockList.Delete(lock.GetCurrentOwner())
-					lock.Release()
-				}()
-				log.Debug("[SUCCESS]: delay publish")
 				var (
 					queues   []*models.DelayQueue
 					producer hub.ProducerInterface
 					err      error
 				)
+
+				lockList.Store(lock.GetCurrentOwner(), lock)
+				defer func(t time.Time) {
+					lockList.Delete(lock.GetCurrentOwner())
+					lock.Release()
+					if len(queues) > 0 {
+						log.Infof("SUCCESS DELAY QUEUE len: %d, time is %s.", len(queues), time.Since(t).String())
+					}
+				}(time.Now())
+				log.Debug("[SUCCESS]: delay publish")
+
 				if err := app.DB().Where("run_after <= ?", time.Now()).Limit(10000).Find(&queues).Error; err != nil {
 					log.Panic(err)
 				}
@@ -377,9 +384,8 @@ func runCron(h hub.Interface) *cron.Cron {
 					close(ch)
 				}()
 				wg.Wait()
-				log.Info("SUCCESS DELAY QUEUE len: ", len(queues))
 			} else {
-				log.Warning("delay publish: Acquire Fail!")
+				log.Debug("delay publish: Acquire Fail!")
 				return
 			}
 		})
