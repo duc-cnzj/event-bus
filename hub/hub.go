@@ -130,7 +130,7 @@ func (h *Hub) Nack(uniqueId string) error {
 		if err == gorm.ErrRecordNotFound {
 			if err = h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after"}),
+				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after", "status"}),
 			}).Create(&models.Queue{
 				UniqueId: uniqueId,
 				NackedAt: &now,
@@ -566,7 +566,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			if ackMsg {
 				if err = db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
+					DoUpdates: clause.AssignmentColumns([]string{"acked_at", "status"}),
 				}).Create(&models.Queue{
 					UniqueId: msg.UniqueId,
 					AckedAt:  &msg.AckedAt,
