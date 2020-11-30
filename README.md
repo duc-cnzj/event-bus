@@ -25,7 +25,7 @@
 
 ## SDK
 
-php laravel
+php laravel, 配置 env 例如：`MQ_HOST=localhost:9091`
 ```shell script
 composer require duc_cnzj/event-bus-sdk
 ```
@@ -48,7 +48,7 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 1. 普通队列/延迟队列：持续压测关注 qos 情况
 2. 消费时重启 mq、重启 event-bus，查看数据是否有丢失
 3. 后台 job: `republish` `delay publish` 的处理速率
-4. 后台 `event_bus_ack_queue` 、 `event_bus_confirm_queue` 、`delay publish` 处理速率
+4. 后台 `event_bus_ack_queue` 、 `event_bus_confirm_queue` 、`event_bus_delay_queue` 处理速率，这些操作都是入库操作，和数据库本身性能有关系
 
 ### 重点关注
 
