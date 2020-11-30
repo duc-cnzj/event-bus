@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/streadway/amqp"
+	"sync/atomic"
 
 	"mq/conn"
 	"mq/hub"
@@ -17,6 +18,7 @@ import (
 
 var testProducerNum int
 var testQueueName string
+var testMessageTotalNum int64
 
 // produceCmd represents the produce command
 var produceCmd = &cobra.Command{
@@ -40,6 +42,8 @@ var produceCmd = &cobra.Command{
 		h.Config().EachQueueProducerNum = testProducerNum
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
 
+		var total int64
+
 		for i := 0; i < testProducerNum; i++ {
 			producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
 			go func() {
@@ -48,9 +52,17 @@ var produceCmd = &cobra.Command{
 					case <-h.Done():
 						return
 					default:
-						producer.Publish(hub.Message{
+						if testMessageTotalNum > 0 && atomic.LoadInt64(&total) >= testMessageTotalNum {
+							log.Info(atomic.LoadInt64(&total))
+							return
+						}
+						atomic.AddInt64(&total, 1)
+						if err = producer.Publish(hub.Message{
 							Data: fmt.Sprintf("data to test queue by %d\n", producer.GetId()),
-						})
+						}); err != nil {
+							log.Error(err)
+							atomic.AddInt64(&total, -1)
+						}
 					}
 				}
 			}()
@@ -67,6 +79,7 @@ var produceCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(produceCmd)
 
-	produceCmd.Flags().IntVarP(&testProducerNum, "producerNum", "p", 10, "--producerNum/-p 10")
 	produceCmd.Flags().StringVar(&testQueueName, "queue", "test_queue", "--queue test_queue")
+	produceCmd.Flags().IntVarP(&testProducerNum, "producerNum", "p", 0, "--producerNum/-p 10")
+	produceCmd.Flags().Int64VarP(&testMessageTotalNum, "total", "t", 10000, "--total/-t 1000000")
 }

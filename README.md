@@ -53,3 +53,10 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 2. 消费时重启 mq、重启 event-bus，查看数据是否有丢失
 3. 后台 job: `republish` `delay publish` 的处理速率
 4. 后台 `event_bus_ack_queue` 、 `event_bus_confirm_queue` 、`delay publish` 处理速率
+
+### 重点关注
+
+1. 100w 数据量时队列延迟情况
+2. 各种有可能丢数据的骚操作，会不会真的丢数据
+3. 是否存在内存泄露的情况
+4. 数据库可能出现连接过多的问题，注意数据库的最大连接数

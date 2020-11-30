@@ -18,8 +18,8 @@ var consumeCmd = &cobra.Command{
 	Use:   "consume",
 	Short: "开启一个/多个消费者消费",
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if testProducerNum <= 0 {
-			log.Errorf("error num %d.", testProducerNum)
+		if testConsumerNum <= 0 {
+			log.Errorf("error num %d.", testConsumerNum)
 			os.Exit(1)
 		}
 		app.Boot()

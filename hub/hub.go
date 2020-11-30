@@ -598,9 +598,9 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 		return
 	}
 
-	if ackMsg {
+	if ackMsg && !queue.Acked() {
 		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt, Status: models.StatusAcked})
-	} else {
+	} else if !queue.Confirmed() {
 		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 			RetryTimes:  msg.RetryTimes,
 			ConfirmedAt: &now,
