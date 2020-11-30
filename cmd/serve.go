@@ -69,7 +69,7 @@ var serveCmd = &cobra.Command{
 		lockList.Range(func(key, value interface{}) bool {
 			l := value.(*dlm.Lock)
 			log.Debug("Release: ", l.GetCurrentOwner())
-			l.Release()
+			l.ForceRelease()
 			return true
 		})
 		log.Info("receive: ", s)
