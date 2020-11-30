@@ -10,6 +10,7 @@ data:
     RetryTimes: {{ default "3" .Values.conf.RetryTimes }}
     DLMExpiration: {{ default "1800" .Values.conf.DLMExpiration }}
     MaxJobRunningSeconds: {{ default "1800" .Values.conf.MaxJobRunningSeconds }}
+    NackdJobNextRunDelaySeconds: {{ default "600" .Values.conf.NackdJobNextRunDelaySeconds }}
 
     HttpPort: {{ default "7878" .Values.conf.HttpPort }}
 

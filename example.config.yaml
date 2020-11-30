@@ -8,10 +8,24 @@ RetryTimes: 3
 DLMExpiration: 1800
 
 # 每个job最大执行时间
-MaxJobRunningSeconds: 10
+MaxJobRunningSeconds: 1800
 
 # nackd 之后重新推送的延迟时间
-NackdJobNextRunDelaySeconds: 30
+NackdJobNextRunDelaySeconds: 600
+
+# cronjob
+# nack 以及 未消费队列重新推送定时任务
+CronRepublishEnabled: true
+
+# 延迟队列定时任务
+CronDelayPublishEnabled: true
+
+# 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列
+BackgroundConsumerEnabled: true
+
+# 后台 event_bus_ack_queue  event_bus_confirm_queue 定时任务 的协程数量
+# 默认 10 个就行了，根据数据库处理能力定, BackgroundConsumerEnabled 为 false 不执行
+BackConsumerGoroutineNum: 10
 
 AmqpUrl: amqp://guest:guest@localhost:5672/
 PrefetchCount: 1000
@@ -24,13 +38,6 @@ RedisDB: 0
 RedisUsername:
 RedisPassword:
 
-# cronjob
-# nack 以及 未消费队列重新推送定时任务
-CronRepublishEnabled: true
-# 延迟队列定时任务
-CronDelayPublishEnabled: false
-
-
 # DATABASE
 DB_HOST: 127.0.0.1
 DB_PORT: 3306
@@ -39,11 +46,7 @@ DB_USERNAME: root
 DB_PASSWORD:
 
 # 每个队列的消费者数量
-EachQueueConsumerNum: 5
-# 每个队列的生产者数量
-EachQueueProducerNum: 3
+EachQueueConsumerNum: 4
 
-# 是否开启后台 event_bus_ack_queue 和 event_bus_confirm_queue 消费队列
-BackgroundConsumerEnabled: true
-# 后台 event_bus_ack_queue 和 event_bus_confirm_queue 的协程数量
-BackConsumerGoroutineNum: 5
+# 每个队列的生产者数量
+EachQueueProducerNum: 2
