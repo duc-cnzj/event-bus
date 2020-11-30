@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/streadway/amqp"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"mq/conn"
 	"mq/hub"
@@ -32,6 +34,10 @@ var produceCmd = &cobra.Command{
 		app.Boot()
 	},
 	Run: func(cmd *cobra.Command, args []string) {
+		var total int64
+
+		now := time.Now()
+
 		mqConn, err := conn.NewConn(app.Config().AmqpUrl)
 		if err != nil {
 			log.Fatal(err)
@@ -42,11 +48,12 @@ var produceCmd = &cobra.Command{
 		h.Config().EachQueueProducerNum = testProducerNum
 		log.Infof("producer num: %d queue %s", testProducerNum, testQueueName)
 
-		var total int64
-
+		wg := sync.WaitGroup{}
+		wg.Add(testProducerNum)
 		for i := 0; i < testProducerNum; i++ {
 			producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect)
 			go func() {
+				defer wg.Done()
 				for {
 					select {
 					case <-h.Done():
@@ -68,9 +75,22 @@ var produceCmd = &cobra.Command{
 			}()
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
+
+		go func() {
+			wg.Wait()
+			cancel()
+		}()
+
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
-		<-ch
+
+		select {
+		case <-ctx.Done():
+		case <-ch:
+		}
+		log.Infof("生产 %d 条数据执行的时间是 %s", total, time.Since(now).String())
+
 		h.Close()
 		log.Println("shutdown...")
 	},
@@ -80,6 +100,6 @@ func init() {
 	rootCmd.AddCommand(produceCmd)
 
 	produceCmd.Flags().StringVar(&testQueueName, "queue", "test_queue", "--queue test_queue")
-	produceCmd.Flags().IntVarP(&testProducerNum, "producerNum", "p", 0, "--producerNum/-p 10")
-	produceCmd.Flags().Int64VarP(&testMessageTotalNum, "total", "t", 10000, "--total/-t 1000000")
+	produceCmd.Flags().IntVarP(&testProducerNum, "producerNum", "p", 10, "--producerNum/-p 10")
+	produceCmd.Flags().Int64VarP(&testMessageTotalNum, "total", "t", 0, "--total/-t 1000000")
 }
