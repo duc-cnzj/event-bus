@@ -56,7 +56,6 @@ type Interface interface {
 	CloseAllConsumer()
 	CloseAllProducer()
 
-	// todo remove
 	GetAmqpConn() (*amqp.Connection, error)
 
 	GetDBConn() *gorm.DB
