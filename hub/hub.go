@@ -128,7 +128,7 @@ func (h *Hub) Nack(uniqueId string) error {
 	now := time.Now()
 	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id", uniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			h.GetDBConn().Clauses(clause.OnConflict{
+			if err = h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after"}),
 			}).Create(&models.Queue{
@@ -136,7 +136,9 @@ func (h *Hub) Nack(uniqueId string) error {
 				NackedAt: &now,
 				Status:   models.StatusNacked,
 				RunAfter: &now,
-			})
+			}).Error; err != nil {
+				return err
+			}
 		}
 	}
 
@@ -148,7 +150,9 @@ func (h *Hub) Nack(uniqueId string) error {
 		return ErrorAlreadyAcked
 	}
 
-	h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked})
+	if err = h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked}).Error; err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -517,47 +521,61 @@ func (h *Hub) consumeDelayPublishQueue() {
 			}
 			runAfter := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
 
-			h.GetDBConn().Create(&models.DelayQueue{
+			if err = h.GetDBConn().Create(&models.DelayQueue{
 				UniqueId:     msg.UniqueId,
 				Data:         msg.Data,
 				QueueName:    msg.QueueName,
 				RunAfter:     &runAfter,
 				DelaySeconds: msg.DelaySeconds,
 				Ref:          msg.Ref,
-			})
+			}).Error; err != nil {
+				delivery.Nack(false, true)
+				return
+			}
 			delivery.Ack(false)
 		}
 	}
 }
 
 func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
-	defer delivery.Ack(false)
-
 	var (
 		msg = &Message{}
 		err error
 		now = time.Now()
 	)
+
+	defer func() {
+		if err != nil {
+			log.Error("出现了不应该出现的异常", err)
+			delivery.Nack(false, true)
+		} else {
+			delivery.Ack(false)
+		}
+	}()
+
 	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
 		log.Error(err)
 		return
 	}
+
 	var queue = &models.Queue{
 		UniqueId: msg.UniqueId,
 	}
 	if err = db.Unscoped().Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if ackMsg {
-				db.Clauses(clause.OnConflict{
+				if err = db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
 					DoUpdates: clause.AssignmentColumns([]string{"acked_at"}),
 				}).Create(&models.Queue{
 					UniqueId: msg.UniqueId,
 					AckedAt:  &msg.AckedAt,
 					Status:   models.StatusAcked,
-				})
+				}).Error; err != nil {
+					log.Error(err)
+				}
 			} else {
-				db.Clauses(clause.OnConflict{
+				if err = db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
 					DoUpdates: clause.AssignmentColumns([]string{"run_after", "retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
 				}).Create(&models.Queue{
@@ -569,7 +587,9 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 					RunAfter:    msg.RunAfter,
 					Ref:         msg.Ref,
 					IsConfirmed: true,
-				})
+				}).Error; err != nil {
+					log.Error(err)
+				}
 			}
 		} else {
 			log.Error(err)
@@ -584,7 +604,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 
 	if queue.Nackd() {
 		if !queue.Confirmed() {
-			db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+			if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 				RetryTimes:  msg.RetryTimes,
 				ConfirmedAt: &now,
 				Data:        msg.Data,
@@ -592,16 +612,20 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 				RunAfter:    msg.RunAfter,
 				Ref:         msg.Ref,
 				IsConfirmed: true,
-			})
+			}).Error; err != nil {
+				log.Error(err)
+			}
 		}
 		log.Warn("queue status", queue.NackedAt)
 		return
 	}
 
 	if ackMsg && !queue.Acked() {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt, Status: models.StatusAcked})
+		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt, Status: models.StatusAcked}).Error; err != nil {
+			log.Error(err)
+		}
 	} else if !queue.Confirmed() {
-		db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
 			RetryTimes:  msg.RetryTimes,
 			ConfirmedAt: &now,
 			Data:        msg.Data,
@@ -609,7 +633,9 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			RunAfter:    msg.RunAfter,
 			Ref:         msg.Ref,
 			IsConfirmed: true,
-		})
+		}).Error; err != nil {
+			log.Error(err)
+		}
 	}
 }
 
