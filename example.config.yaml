@@ -5,7 +5,7 @@ PrintConfig: false
 RetryTimes: 3
 
 # 分布式锁加锁时长
-DLMExpiration: 1800
+DLMExpiration: 300
 
 # 每个job最大执行时间
 MaxJobRunningSeconds: 1800
