@@ -2,7 +2,7 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 10
+replicaCount: 3
 
 image:
   repository: registry.cn-hangzhou.aliyuncs.com/duc-cnzj/event-bus
@@ -87,7 +87,7 @@ conf:
   RetryTimes: 3
 
   # 分布式锁加锁时长
-  DLMExpiration: 1800
+  DLMExpiration: 500
 
   # 每个job最大执行时间
   MaxJobRunningSeconds: 1800
@@ -109,19 +109,19 @@ conf:
   # 默认 10 个就行了，根据数据库处理能力定, BackgroundConsumerEnabled 为 false 不执行
   BackConsumerGoroutineNum: 10
 
-  AmqpUrl: amqp://guest:guest@localhost:5672/
+  AmqpUrl: amqp://guest:guest@10.88.57.245:5672/
   PrefetchCount: 1000
   HttpPort: 7878
   RpcPort: 9091
 
   # redis
-  RedisAddr: localhost:6379
+  RedisAddr: 10.88.57.245:6379
   RedisDB: 0
   RedisUsername:
   RedisPassword:
 
   # DATABASE
-  DB_HOST: 127.0.0.1
+  DB_HOST: 10.88.57.245
   DB_PORT: 3306
   DB_DATABASE: mq_v2
   DB_USERNAME: root
