@@ -3,6 +3,8 @@ syntax="proto3";
 package mq;
 option go_package=".;mq";
 
+import "google/protobuf/empty.proto";
+
 option php_metadata_namespace="DucCnzj\\EventBus\\Mq";
 option php_namespace="DucCnzj\\EventBus\\Mq";
 
@@ -11,38 +13,35 @@ message PublishRequest {
   string data = 2;
 }
 
-message Response {
-  bool success = 1;
-  string id = 2;
-  string data = 3;
-  string queue = 4;
-  string runAfter = 5;
-  uint64 delaySeconds = 6;
+message DelayPublishRequest {
+  string queue = 1;
+  string data = 2;
+  uint64 delaySeconds = 3;
 }
 
 message SubscribeRequest {
   string queue = 1;
 }
 
+message SubscribeResponse {
+  string id = 1;
+  string data = 2;
+  string queue = 3;
+}
+
 message QueueId {
   string id = 1;
 }
 
-message DelayPublishRequest {
-  string queue = 1;
-  string data = 2;
-  uint64 seconds = 3;
-}
-
 service Mq {
   // php:inline
-  rpc publish(PublishRequest) returns (Response);
+  rpc publish(PublishRequest) returns (google.protobuf.Empty);
   // php:inline
-  rpc delayPublish(DelayPublishRequest) returns (Response);
+  rpc delayPublish(DelayPublishRequest) returns (google.protobuf.Empty);
   // php:inline
-  rpc subscribe(SubscribeRequest) returns (Response);
+  rpc subscribe(SubscribeRequest) returns (SubscribeResponse);
   // php:inline
-  rpc ack(QueueId) returns (Response);
+  rpc ack(QueueId) returns (google.protobuf.Empty);
   // php:inline
-  rpc nack(QueueId) returns (Response);
+  rpc nack(QueueId) returns (google.protobuf.Empty);
 }

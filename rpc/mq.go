@@ -3,10 +3,9 @@ package rpc
 import (
 	"context"
 	"errors"
+	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"mq/hub"
 	mq "mq/protos"
 )
@@ -17,7 +16,7 @@ type MQ struct {
 }
 
 // 推送消息
-func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response, error) {
+func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*empty.Empty, error) {
 	log.Debug("publish", pub.Data, pub.Queue)
 	var (
 		producer hub.ProducerInterface
@@ -25,24 +24,22 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*mq.Response,
 	)
 
 	if pub.Queue == "" || pub.Data == "" {
-		return nil, errors.New("queue name and data can not be null")
+		return nil, errors.New("queue and data can't empty")
 	}
 
 	if producer, err = m.newProducer(pub.Queue); err != nil {
-		return nil, hub.ErrorServerUnavailable
+		return nil, err
 	}
+
 	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{
-		Success: true,
-		Data:    pub.Data,
-	}, nil
+	return &empty.Empty{}, nil
 }
 
 // DelayPublish 延迟推送
-func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq.Response, error) {
+func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*empty.Empty, error) {
 	log.Debug("delay publish", req.Queue)
 	var (
 		err error
@@ -50,63 +47,61 @@ func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*mq
 
 	if err = m.Hub.DelayPublish(
 		req.Queue,
-		hub.Message{
-			Data: req.Data,
-		},
-		uint(req.Seconds),
+		hub.Message{Data: req.Data},
+		uint(req.DelaySeconds),
 	); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{Success: true}, nil
+	return &empty.Empty{}, nil
 }
 
 // Subscribe 订阅消息
-func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Response, error) {
+func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.SubscribeResponse, error) {
 	log.Debug("Subscribe", sub.Queue)
 	var (
 		consumer hub.ConsumerInterface
 		err      error
 		msg      *hub.Message
 	)
-	if consumer, err = m.newConsumer(sub.Queue); err != nil {
-		return nil, status.Errorf(codes.Unavailable, "server unavailable")
-	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	msg, err = consumer.Consume(ctx)
-	if err != nil {
+
+	if consumer, err = m.newConsumer(sub.Queue); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{
-		Success: true,
-		Data:    msg.Data,
-		Queue:   sub.Queue,
-		Id:      msg.UniqueId,
+	if msg, err = consumer.Consume(ctx); err != nil {
+		return nil, err
+	}
+
+	return &mq.SubscribeResponse{
+		Id:    msg.UniqueId,
+		Data:  msg.Data,
+		Queue: msg.QueueName,
 	}, nil
 }
 
 // Ack 客户端确认已消费成功
-func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
+func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
 	log.Debug("Ack", queueId.Id)
 
 	if err := m.Hub.Ack(queueId.GetId()); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{Success: true}, nil
+	return &empty.Empty{}, nil
 }
 
 // Nack 客户端拒绝消费
-func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*mq.Response, error) {
+func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
 	log.Debug("Nack", queueId.Id)
 
 	if err := m.Hub.Nack(queueId.GetId()); err != nil {
 		return nil, err
 	}
 
-	return &mq.Response{Success: true}, nil
+	return &empty.Empty{}, nil
 }
 
 func (m *MQ) mustEmbedUnimplementedMQServer() {

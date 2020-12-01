@@ -4,6 +4,7 @@ package mq
 
 import (
 	context "context"
+	empty "github.com/golang/protobuf/ptypes/empty"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -18,15 +19,15 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type MqClient interface {
 	// php:inline
-	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Response, error)
+	Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// php:inline
-	DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*Response, error)
+	DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// php:inline
-	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*Response, error)
+	Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error)
 	// php:inline
-	Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error)
+	Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error)
 	// php:inline
-	Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error)
+	Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error)
 }
 
 type mqClient struct {
@@ -37,8 +38,8 @@ func NewMqClient(cc grpc.ClientConnInterface) MqClient {
 	return &mqClient{cc}
 }
 
-func (c *mqClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *mqClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/mq.Mq/publish", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -46,8 +47,8 @@ func (c *mqClient) Publish(ctx context.Context, in *PublishRequest, opts ...grpc
 	return out, nil
 }
 
-func (c *mqClient) DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *mqClient) DelayPublish(ctx context.Context, in *DelayPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/mq.Mq/delayPublish", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -55,8 +56,8 @@ func (c *mqClient) DelayPublish(ctx context.Context, in *DelayPublishRequest, op
 	return out, nil
 }
 
-func (c *mqClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *mqClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error) {
+	out := new(SubscribeResponse)
 	err := c.cc.Invoke(ctx, "/mq.Mq/subscribe", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -64,8 +65,8 @@ func (c *mqClient) Subscribe(ctx context.Context, in *SubscribeRequest, opts ...
 	return out, nil
 }
 
-func (c *mqClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *mqClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/mq.Mq/ack", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -73,8 +74,8 @@ func (c *mqClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption
 	return out, nil
 }
 
-func (c *mqClient) Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*Response, error) {
-	out := new(Response)
+func (c *mqClient) Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
 	err := c.cc.Invoke(ctx, "/mq.Mq/nack", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -87,15 +88,15 @@ func (c *mqClient) Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOptio
 // for forward compatibility
 type MqServer interface {
 	// php:inline
-	Publish(context.Context, *PublishRequest) (*Response, error)
+	Publish(context.Context, *PublishRequest) (*empty.Empty, error)
 	// php:inline
-	DelayPublish(context.Context, *DelayPublishRequest) (*Response, error)
+	DelayPublish(context.Context, *DelayPublishRequest) (*empty.Empty, error)
 	// php:inline
-	Subscribe(context.Context, *SubscribeRequest) (*Response, error)
+	Subscribe(context.Context, *SubscribeRequest) (*SubscribeResponse, error)
 	// php:inline
-	Ack(context.Context, *QueueId) (*Response, error)
+	Ack(context.Context, *QueueId) (*empty.Empty, error)
 	// php:inline
-	Nack(context.Context, *QueueId) (*Response, error)
+	Nack(context.Context, *QueueId) (*empty.Empty, error)
 	mustEmbedUnimplementedMqServer()
 }
 
@@ -103,19 +104,19 @@ type MqServer interface {
 type UnimplementedMqServer struct {
 }
 
-func (UnimplementedMqServer) Publish(context.Context, *PublishRequest) (*Response, error) {
+func (UnimplementedMqServer) Publish(context.Context, *PublishRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
 }
-func (UnimplementedMqServer) DelayPublish(context.Context, *DelayPublishRequest) (*Response, error) {
+func (UnimplementedMqServer) DelayPublish(context.Context, *DelayPublishRequest) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DelayPublish not implemented")
 }
-func (UnimplementedMqServer) Subscribe(context.Context, *SubscribeRequest) (*Response, error) {
+func (UnimplementedMqServer) Subscribe(context.Context, *SubscribeRequest) (*SubscribeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
 }
-func (UnimplementedMqServer) Ack(context.Context, *QueueId) (*Response, error) {
+func (UnimplementedMqServer) Ack(context.Context, *QueueId) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Ack not implemented")
 }
-func (UnimplementedMqServer) Nack(context.Context, *QueueId) (*Response, error) {
+func (UnimplementedMqServer) Nack(context.Context, *QueueId) (*empty.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Nack not implemented")
 }
 func (UnimplementedMqServer) mustEmbedUnimplementedMqServer() {}
