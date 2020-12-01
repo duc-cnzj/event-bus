@@ -19,8 +19,6 @@ import (
 )
 
 var testProducerNum int
-var testQueueName string
-var testMessageTotalNum int64
 
 // produceCmd represents the produce command
 var produceCmd = &cobra.Command{
@@ -97,9 +95,7 @@ var produceCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(produceCmd)
+	testCmd.AddCommand(produceCmd)
 
-	produceCmd.Flags().StringVar(&testQueueName, "queue", "test_queue", "--queue test_queue")
 	produceCmd.Flags().IntVarP(&testProducerNum, "producerNum", "p", 10, "--producerNum/-p 10")
-	produceCmd.Flags().Int64VarP(&testMessageTotalNum, "total", "t", 0, "--total/-t 1000000")
 }
