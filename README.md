@@ -1,5 +1,7 @@
 # 微服务消息总线
 
+![build-sdk](https://github.com/DuC-cnZj/event-bus/workflows/build-sdk/badge.svg)
+
 ## feature
 
 1. 秒级延迟队列
