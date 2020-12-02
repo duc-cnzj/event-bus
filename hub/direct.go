@@ -309,7 +309,6 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		err         error
 		msg         = &Message{}
 	)
-
 	select {
 	case <-d.hub.Done():
 		log.Debug("hub done")
