@@ -20,14 +20,14 @@ type DirectProducer struct {
 	*ProducerBase
 }
 
-func NewDirectProducer(queueName string, hub Interface, id int64) ProducerBuilder {
+func NewDirectProducer(queueName, exchange string, hub Interface, id int64) ProducerBuilder {
 	d := &DirectProducer{ProducerBase: &ProducerBase{
 		id:        id,
 		pm:        hub.ProducerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,
 		hub:       hub,
-		exchange:  DefaultExchange,
+		exchange:  exchange,
 	}}
 
 	return d
@@ -95,9 +95,12 @@ func (d *DirectProducer) GetQueueName() string {
 func (d *DirectProducer) GetKind() string {
 	return d.kind
 }
+func (d *DirectProducer) GetExchange() string {
+	return d.exchange
+}
 
 func (d *DirectProducer) PrepareConn() error {
-	defer func(t time.Time) { log.Warnf("DirectProducer PrepareConn time: %v", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectProducer PrepareConn time: %v", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -114,7 +117,7 @@ func (d *DirectProducer) PrepareConn() error {
 }
 
 func (d *DirectProducer) PrepareChannel() error {
-	defer func(t time.Time) { log.Warnf("DirectProducer prepareChannel %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectProducer prepareChannel %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -128,14 +131,14 @@ func (d *DirectProducer) PrepareChannel() error {
 }
 
 func (d *DirectProducer) PrepareExchange() error {
-	defer func(t time.Time) { log.Warnf("DirectProducer prepareExchange %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectProducer prepareExchange %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
 	)
 	if err = d.channel.ExchangeDeclare(
 		d.exchange,
-		amqp.ExchangeDirect,
+		d.kind,
 		true,
 		false,
 		false,
@@ -149,7 +152,7 @@ func (d *DirectProducer) PrepareExchange() error {
 
 func (d *DirectProducer) PrepareQueueDeclare() error {
 	defer func(t time.Time) {
-		log.Warnf("DirectProducer prepareQueueDeclare queueName %s %v", d.queueName, time.Since(t))
+		log.Debugf("DirectProducer prepareQueueDeclare queueName %s %v", d.queueName, time.Since(t))
 	}(time.Now())
 
 	var (
@@ -175,10 +178,10 @@ func (d *DirectProducer) PrepareQueueDeclare() error {
 }
 
 func (d *DirectProducer) PrepareQueueBind() error {
-	defer func(t time.Time) { log.Warnf("DirectProducer prepareQueueBind %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectProducer prepareQueueBind %v.", time.Since(t)) }(time.Now())
 
 	var err error
-	if err = d.channel.QueueBind(d.queue.Name, d.queue.Name, DefaultExchange, false, nil); err != nil {
+	if err = d.channel.QueueBind(d.queueName, d.queueName, d.exchange, false, nil); err != nil {
 		return err
 	}
 	return nil
@@ -260,14 +263,14 @@ type DirectConsumer struct {
 	*ConsumerBase
 }
 
-func NewDirectConsumer(queueName string, hub Interface, id int64) ConsumerBuilder {
+func NewDirectConsumer(queueName, exchange string, hub Interface, id int64) ConsumerBuilder {
 	return &DirectConsumer{ConsumerBase: &ConsumerBase{
 		id:        id,
 		cm:        hub.ConsumerManager(),
 		queueName: queueName,
 		kind:      amqp.ExchangeDirect,
 		hub:       hub,
-		exchange:  DefaultExchange,
+		exchange:  exchange,
 	}}
 }
 
@@ -284,7 +287,7 @@ func (d *DirectConsumer) Nack(uniqueId string) error {
 }
 
 func (d *DirectConsumer) Delivery() chan amqp.Delivery {
-	return d.cm.Delivery(d.queueName, d.kind)
+	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
 }
 
 func (d *DirectConsumer) GetConn() *amqp.Connection {
@@ -302,6 +305,9 @@ func (d *DirectConsumer) GetQueueName() string {
 func (d *DirectConsumer) GetKind() string {
 	return d.kind
 }
+func (d *DirectConsumer) GetExchange() string {
+	return d.exchange
+}
 
 func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	var (
@@ -309,6 +315,20 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		err         error
 		msg         = &Message{}
 	)
+
+	recheckCtx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	go func() {
+		select {
+		case <-time.After(5 * time.Second):
+			d.hub.CheckQueue(d.queueName, d.kind, d.exchange)
+			log.Warnf("队列 %s 触发重平衡", d.queueName)
+		case <-recheckCtx.Done():
+			log.Debug("CheckQueue 未触发 exit")
+		}
+	}()
+
 	select {
 	case <-d.hub.Done():
 		log.Debug("hub done")
@@ -351,7 +371,7 @@ func (d *DirectConsumer) PrepareDelivery() error {
 		delivery <-chan amqp.Delivery
 		err      error
 	)
-	if delivery, err = d.channel.Consume(d.GetQueueName(), "", false, false, false, false, nil); err != nil {
+	if delivery, err = d.channel.Consume(d.queueName, "", false, false, false, false, nil); err != nil {
 		return err
 	}
 	d.delivery = delivery
@@ -376,7 +396,7 @@ func (d *DirectConsumer) PrepareQos() error {
 }
 
 func (d *DirectConsumer) PrepareConn() error {
-	defer func(t time.Time) { log.Warnf("DirectConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -393,7 +413,7 @@ func (d *DirectConsumer) PrepareConn() error {
 }
 
 func (d *DirectConsumer) PrepareChannel() error {
-	defer func(t time.Time) { log.Warnf("DirectConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -407,14 +427,14 @@ func (d *DirectConsumer) PrepareChannel() error {
 }
 
 func (d *DirectConsumer) PrepareExchange() error {
-	defer func(t time.Time) { log.Warnf("DirectConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
 	)
 	if err = d.channel.ExchangeDeclare(
 		d.exchange,
-		amqp.ExchangeDirect,
+		d.kind,
 		true,
 		false,
 		false,
@@ -427,7 +447,7 @@ func (d *DirectConsumer) PrepareExchange() error {
 }
 
 func (d *DirectConsumer) PrepareQueueDeclare() error {
-	defer func(t time.Time) { log.Warnf("DirectConsumer prepareQueueDeclare %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectConsumer prepareQueueDeclare %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err   error
@@ -449,10 +469,10 @@ func (d *DirectConsumer) PrepareQueueDeclare() error {
 }
 
 func (d *DirectConsumer) PrepareQueueBind() error {
-	defer func(t time.Time) { log.Warnf("DirectConsumer prepareQueueBind %v.", time.Since(t)) }(time.Now())
+	defer func(t time.Time) { log.Debugf("DirectConsumer prepareQueueBind %v.", time.Since(t)) }(time.Now())
 
 	var err error
-	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), DefaultExchange, false, nil); err != nil {
+	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), d.exchange, false, nil); err != nil {
 		return err
 	}
 	return nil
@@ -517,8 +537,8 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 	}()
 
 	go func() {
-		defer log.Warnf("go Delivery EXIT %d", d.GetId())
-		log.Infof("consumer %d 往公共 Delivery 推消息", d.GetId())
+		defer log.Warnf("exchange %s 队列 %s 的 consumer %d go Delivery EXIT", d.GetExchange(), d.GetQueueName(), d.GetId())
+		log.Infof("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
 		for {
 			select {
 			case data, ok := <-d.delivery:

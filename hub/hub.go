@@ -56,6 +56,8 @@ type Interface interface {
 	CloseAllConsumer()
 	CloseAllProducer()
 
+	CheckQueue(queueName, kind, exchange string)
+
 	GetAmqpConn() (*amqp.Connection, error)
 
 	GetDBConn() *gorm.DB
@@ -81,6 +83,7 @@ type Hub struct {
 	closed atomicBool
 
 	cfg *config.Config
+	rb  *Rebalancer
 
 	notifyConnClose chan *amqp.Error
 }
@@ -97,10 +100,15 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	}
 	h.pm = NewProducerManager(h)
 	h.cm = NewConsumerManager(h)
+	h.rb = NewRebalancer(h)
 
 	h.listenAmqpConnDone()
 
 	return h
+}
+
+func (h *Hub) CheckQueue(queueName, kind, exchange string) {
+	h.rb.CheckQueue(queueName, kind, exchange)
 }
 
 func (h *Hub) Ack(uniqueId string) error {
@@ -252,7 +260,7 @@ func (h *Hub) GetDelayPublishConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(DelayQueueName, amqp.ExchangeDirect); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -265,7 +273,7 @@ func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(ConfirmQueueName, amqp.ExchangeDirect); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -284,7 +292,7 @@ func (h *Hub) GetDelayPublishProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(DelayQueueName, amqp.ExchangeDirect); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -297,7 +305,7 @@ func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(ConfirmQueueName, amqp.ExchangeDirect); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -310,7 +318,7 @@ func (h *Hub) GetAckQueueConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(AckQueueName, amqp.ExchangeDirect); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -323,7 +331,7 @@ func (h *Hub) GetAckQueueProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(AckQueueName, amqp.ExchangeDirect); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -353,7 +361,7 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.ProducerManager().GetProducer(queueName, kind); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(queueName, kind, DefaultExchange); err != nil {
 		log.Debugf("hub.NewProducer GetProducer err %v.", err)
 		return nil, err
 	}
@@ -371,7 +379,7 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -660,6 +668,7 @@ func (h *Hub) listenAmqpConnDone() {
 			h.cancel = cancelFunc
 			h.pm = NewProducerManager(h)
 			h.cm = NewConsumerManager(h)
+			h.rb = NewRebalancer(h)
 			if h.Config().BackgroundConsumerEnabled {
 				h.RunBackgroundJobs()
 			}

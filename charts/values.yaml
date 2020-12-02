@@ -2,13 +2,16 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-replicaCount: 3
+replicaCount: 2
 
 image:
-  repository: registry.cn-hangzhou.aliyuncs.com/duc-cnzj/event-bus
-  pullPolicy: Always
+  repository: duc/mq-event-bus
+#  repository: registry.cn-hangzhou.aliyuncs.com/duc-cnzj/event-bus
+#  pullPolicy: Always
+  pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: latest
+  tag: dev
+#  tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
@@ -109,26 +112,26 @@ conf:
   # 默认 10 个就行了，根据数据库处理能力定, BackgroundConsumerEnabled 为 false 不执行
   BackConsumerGoroutineNum: 10
 
-  AmqpUrl: amqp://guest:guest@127.0.0.1:5672/
-  PrefetchCount: 1000
+  AmqpUrl: amqp://guest:guest@192.168.199.190:5672/
+  PrefetchCount: 2000
   HttpPort: 7878
   RpcPort: 9091
 
   # redis
-  RedisAddr: 127.0.0.1:6379
+  RedisAddr: 192.168.199.190:6379
   RedisDB: 0
   RedisUsername:
   RedisPassword:
 
   # DATABASE
-  DB_HOST: 127.0.0.1
+  DB_HOST: 192.168.199.190
   DB_PORT: 3306
   DB_DATABASE: mq_v2
   DB_USERNAME: root
   DB_PASSWORD:
 
   # 每个队列的消费者数量
-  EachQueueConsumerNum: 4
+  EachQueueConsumerNum: 1
 
   # 每个队列的生产者数量
-  EachQueueProducerNum: 2
+  EachQueueProducerNum: 1

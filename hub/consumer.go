@@ -11,6 +11,7 @@ type ConsumerInterface interface {
 	GetChannel() *amqp.Channel
 	GetQueueName() string
 	GetKind() string
+	GetExchange() string
 	Consume(ctx context.Context) (*Message, error)
 	Ack(string) error
 	Nack(string) error

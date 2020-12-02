@@ -43,7 +43,7 @@ var consumeCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		wg.Add(testConsumerNum)
 		for i := 0; i < testConsumerNum; i++ {
-			consumer, _ := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect)
+			consumer, _ := h.ConsumerManager().GetConsumer(testQueueName, amqp.ExchangeDirect, hub.DefaultExchange)
 			go func() {
 				defer wg.Done()
 				for {
