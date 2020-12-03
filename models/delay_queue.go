@@ -14,6 +14,7 @@ type DelayQueue struct {
 	RunAfter     *time.Time `json:"run_after" gorm:"nullable;index:run_after_deleted_at_idx;"`
 	DelaySeconds uint       `json:"delay_seconds" gorm:"not null;default:0;"`
 	Ref          string     `json:"ref" gorm:"index:ref_idx;type:string;"`
+	RetryTimes   int        `json:"retry_times" gorm:"default:0;"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

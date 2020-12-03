@@ -31,7 +31,7 @@ func NewRebalancer(hub *Hub) *Rebalancer {
 	return rb
 }
 
-func (r *Rebalancer) CheckQueue(queueName, kind, exchange string) {
+func (r *Rebalancer) ReBalance(queueName, kind, exchange string) {
 	var (
 		producer ProducerInterface
 		err      error

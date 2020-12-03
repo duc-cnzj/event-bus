@@ -49,7 +49,7 @@ var serveCmd = &cobra.Command{
 		h := hub.NewHub(mqConn, app.Config(), app.DB())
 
 		if h.Config().BackgroundConsumerEnabled {
-			h.RunBackgroundJobs()
+			h.(hub.BackgroundJobWorker).Run()
 		}
 
 		cr := runCron(h)
@@ -277,8 +277,9 @@ func runCron(h hub.Interface) *cron.Cron {
 									if err := h.DelayPublish(
 										queue.QueueName,
 										hub.Message{
-											Data: queue.Data,
-											Ref:  queue.UniqueId,
+											RetryTimes: queue.RetryTimes + 1,
+											Data:       queue.Data,
+											Ref:        queue.UniqueId,
 										},
 										h.Config().NackdJobNextRunDelaySeconds,
 									); err != nil {
@@ -370,10 +371,11 @@ func runCron(h hub.Interface) *cron.Cron {
 									return
 								}
 								err := producer.Publish(hub.Message{
-									Ref:       queue.Ref,
-									QueueName: queue.QueueName,
-									UniqueId:  queue.UniqueId,
-									Data:      queue.Data,
+									RetryTimes: queue.RetryTimes,
+									Ref:        queue.Ref,
+									QueueName:  queue.QueueName,
+									UniqueId:   queue.UniqueId,
+									Data:       queue.Data,
 								})
 								if err != nil {
 									log.Panic("delay publish error", err)

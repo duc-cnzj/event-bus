@@ -53,7 +53,7 @@ var rpcSubCmd = &cobra.Command{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		wg := sync.WaitGroup{}
-		num := 50
+		num := wgnum
 		wg.Add(num)
 		for i := 0; i < num; i++ {
 			go func() {

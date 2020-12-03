@@ -55,7 +55,7 @@ var rpcPubCmd = &cobra.Command{
 		defer cancel()
 
 		wg := sync.WaitGroup{}
-		num := 30
+		num := wgnum
 		wg.Add(num)
 		for i := 0; i < num; i++ {
 			go func() {

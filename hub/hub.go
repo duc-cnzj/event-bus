@@ -17,6 +17,7 @@ import (
 )
 
 var _ Interface = (*Hub)(nil)
+var _ BackgroundJobWorker = (*Hub)(nil)
 
 type atomicBool int32
 
@@ -24,13 +25,8 @@ func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
 func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
 func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
-type Interface interface {
-	Ack(string) error
-	Nack(string) error
-
-	DelayPublish(string, Message, uint) error
-
-	RunBackgroundJobs()
+type BackgroundJobWorker interface {
+	Run()
 
 	GetDelayPublishProducer() (ProducerInterface, error)
 	GetDelayPublishConsumer() (ConsumerInterface, error)
@@ -43,6 +39,13 @@ type Interface interface {
 	GetAckQueueProducer() (ProducerInterface, error)
 	GetAckQueueConsumer() (ConsumerInterface, error)
 	ConsumeAckQueue()
+}
+
+type Interface interface {
+	Ack(string) error
+	Nack(string) error
+
+	DelayPublish(string, Message, uint) error
 
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
@@ -56,7 +59,7 @@ type Interface interface {
 	CloseAllConsumer()
 	CloseAllProducer()
 
-	CheckQueue(queueName, kind, exchange string)
+	ReBalance(queueName, kind, exchange string)
 
 	GetAmqpConn() (*amqp.Connection, error)
 
@@ -66,7 +69,6 @@ type Interface interface {
 	Close()
 
 	Done() <-chan struct{}
-
 	Config() *config.Config
 }
 
@@ -107,8 +109,8 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	return h
 }
 
-func (h *Hub) CheckQueue(queueName, kind, exchange string) {
-	h.rb.CheckQueue(queueName, kind, exchange)
+func (h *Hub) ReBalance(queueName, kind, exchange string) {
+	h.rb.ReBalance(queueName, kind, exchange)
 }
 
 func (h *Hub) Ack(uniqueId string) error {
@@ -134,7 +136,7 @@ func (h *Hub) Nack(uniqueId string) error {
 		queue models.Queue
 	)
 	now := time.Now()
-	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id", uniqueId).First(&queue).Error; err != nil {
+	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id = ?", uniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if err = h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
@@ -147,6 +149,8 @@ func (h *Hub) Nack(uniqueId string) error {
 			}).Error; err != nil {
 				return err
 			}
+		} else {
+			log.Error(err)
 		}
 	}
 
@@ -158,7 +162,7 @@ func (h *Hub) Nack(uniqueId string) error {
 		return ErrorAlreadyAcked
 	}
 
-	if err = h.GetDBConn().Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked}).Error; err != nil {
+	if err = h.GetDBConn().Model(&models.Queue{}).Where("id = ?", queue.ID).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked}).Error; err != nil {
 		return err
 	}
 
@@ -280,7 +284,7 @@ func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
 	return consumer, nil
 }
 
-func (h *Hub) RunBackgroundJobs() {
+func (h *Hub) Run() {
 	go h.ConsumeConfirmQueue()
 	go h.ConsumeAckQueue()
 	go h.ConsumeDelayPublishQueue()
@@ -530,6 +534,7 @@ func (h *Hub) consumeDelayPublishQueue() {
 			runAfter := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
 
 			if err = h.GetDBConn().Create(&models.DelayQueue{
+				RetryTimes:   msg.RetryTimes,
 				UniqueId:     msg.UniqueId,
 				Data:         msg.Data,
 				QueueName:    msg.QueueName,
@@ -670,7 +675,7 @@ func (h *Hub) listenAmqpConnDone() {
 			h.cm = NewConsumerManager(h)
 			h.rb = NewRebalancer(h)
 			if h.Config().BackgroundConsumerEnabled {
-				h.RunBackgroundJobs()
+				h.Run()
 			}
 			h.listenAmqpConnDone()
 		}

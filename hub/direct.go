@@ -340,10 +340,10 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	go func() {
 		select {
 		case <-time.After(5 * time.Second):
-			d.hub.CheckQueue(d.queueName, d.kind, d.exchange)
+			d.hub.ReBalance(d.queueName, d.kind, d.exchange)
 			log.Warnf("队列 %s 触发重平衡", d.queueName)
 		case <-recheckCtx.Done():
-			log.Debug("CheckQueue 未触发 exit")
+			log.Debug("ReBalance 未触发 exit")
 		}
 	}()
 
@@ -364,8 +364,8 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		json.Unmarshal(data.Body, &msg)
 		msg.RunAfter = nextRunTime(msg, d.hub.Config())
 
-		if d.AutoAck() {
-			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
+		if !d.AutoAck() {
+			if ackProducer, err = d.hub.(BackgroundJobWorker).GetConfirmProducer(); err != nil {
 				log.Debug(err)
 				data.Nack(false, true)
 				return nil, err
@@ -396,7 +396,7 @@ func (d *DirectConsumer) Ack(uniqueId string) error {
 }
 
 func (d *DirectConsumer) Nack(uniqueId string) error {
-	if d.AutoAck() {
+	if !d.AutoAck() {
 		return d.hub.Nack(uniqueId)
 	}
 
