@@ -1,6 +1,6 @@
 # 微服务消息总线
 
-![build-sdk](https://github.com/DuC-cnZj/event-bus/workflows/build-sdk/badge.svg)
+![build-sdk](https://github.com/DuC-cnZj/event-bus/workflows/build-sdk/badge.svg) [![Go Report Card](https://goreportcard.com/badge/github.com/DuC-cnZj/event-bus)](https://goreportcard.com/report/github.com/DuC-cnZj/event-bus)
 
 ## feature
 
