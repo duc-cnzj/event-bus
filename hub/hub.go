@@ -197,6 +197,7 @@ func (h *Hub) consumeConfirmQueue() {
 		log.Error("err ConsumeConfirmQueue()", err)
 		return
 	}
+	defer consumer.Close()
 
 	for {
 		select {
@@ -238,6 +239,8 @@ func (h *Hub) consumeAckQueue() {
 		log.Error("err GetAckQueueConsumer()", err)
 		return
 	}
+
+	defer consumer.Close()
 
 	for {
 		select {
@@ -508,6 +511,7 @@ func (h *Hub) consumeDelayPublishQueue() {
 		log.Error("err ConsumeDelayPublishQueue()", err)
 		return
 	}
+	defer consumer.Close()
 
 	for {
 		select {
