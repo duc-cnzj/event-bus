@@ -101,17 +101,13 @@ func (r *Rebalancer) ListenQueue() {
 					log.Error(err)
 					break
 				}
-				if recheckMsg.Host == hostname {
-					log.Infof("hostname same ignore %s", recheckMsg.Host)
-					break
-				}
 				key := getKey(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)
 
 				log.Infof("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(key)), hostname)
 				if len(r.hub.cm.Delivery(key)) > 0 {
 					if load, ok := r.syncTimeMap.Load(key); ok {
-						if load.(time.Time).After(time.Now().Add(5 * time.Second)) {
-							log.Warn("5 秒内已经触发过重平衡了")
+						if load.(time.Time).After(time.Now().Add(3 * time.Second)) {
+							log.Warn("3 秒内已经触发过重平衡了")
 							return
 						}
 					}

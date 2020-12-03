@@ -19,7 +19,7 @@ type Queue struct {
 	Data      string `json:"data"`
 	QueueName string `json:"queue_name"`
 
-	Kind         string     `json:"kind"`
+	Kind     string `json:"kind"`
 	UniqueId string `json:"unique_id" gorm:"not null;index:unique_id_idx,unique;type:string;"`
 
 	Ref string `json:"ref" gorm:"type:string;"`
