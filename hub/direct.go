@@ -223,28 +223,28 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 	)
 
 	if err = d.PrepareConn(); err != nil {
-		log.Info("newProducer PrepareConn", err)
+		log.Debug("newProducer PrepareConn", err)
 		return nil, err
 	}
 
 	if err = d.PrepareChannel(); err != nil {
-		log.Info("newProducer prepareChannel", err)
+		log.Debug("newProducer prepareChannel", err)
 		return nil, err
 	}
 
 	if err = d.PrepareExchange(); err != nil {
-		log.Info("newProducer prepareExchange", err)
+		log.Debug("newProducer prepareExchange", err)
 		return nil, err
 	}
 
 	if err = d.PrepareQueueDeclare(); err != nil {
-		log.Info("newProducer prepareQueueDeclare", err)
+		log.Debug("newProducer prepareQueueDeclare", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQueueBind(); err != nil {
-		log.Info("newProducer prepareQueueBind", err)
+		log.Debug("newProducer prepareQueueBind", err)
 
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (d *DirectProducer) Build() (ProducerInterface, error) {
 
 func (d *DirectProducer) Close() {
 	if d.closed.isSet() {
-		log.Warnf("producer %s already closed.", d.GetQueueName())
+		log.Debugf("producer %s already closed.", d.GetQueueName())
 		return
 	}
 	d.RemoveSelf()
@@ -559,34 +559,34 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 	)
 
 	if err = d.PrepareConn(); err != nil {
-		log.Error("newConsumer PrepareConn", err)
+		log.Debug("newConsumer PrepareConn", err)
 		return nil, err
 	}
 
 	if err = d.PrepareChannel(); err != nil {
-		log.Error("newConsumer prepareChannel", err)
+		log.Debug("newConsumer prepareChannel", err)
 		return nil, err
 	}
 
 	if err = d.PrepareExchange(); err != nil {
-		log.Error("newConsumer prepareExchange", err)
+		log.Debug("newConsumer prepareExchange", err)
 		return nil, err
 	}
 
 	if err = d.PrepareQueueDeclare(); err != nil {
-		log.Error("newConsumer prepareQueueDeclare", err)
+		log.Debug("newConsumer prepareQueueDeclare", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQueueBind(); err != nil {
-		log.Error("newConsumer prepareQueueBind", err)
+		log.Debug("newConsumer prepareQueueBind", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQos(); err != nil {
-		log.Error("newConsumer PrepareQos", err)
+		log.Debug("newConsumer PrepareQos", err)
 
 		return nil, err
 	}
@@ -601,14 +601,14 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 		}()
 		select {
 		case <-d.hub.Done():
-			log.Info("new consumer hub ctx done")
+			log.Debug("new consumer hub ctx done")
 		case <-d.ChannelDone():
 		}
 	}()
 
 	go func() {
 		defer log.Warnf("exchange %s 队列 %s 的 consumer %d go Delivery EXIT", d.GetExchange(), d.GetQueueName(), d.GetId())
-		log.Infof("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
+		log.Debugf("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
 		for {
 			select {
 			case data, ok := <-d.delivery:
@@ -644,7 +644,7 @@ func (d *DirectConsumer) Close() {
 		log.Debugf("Close channel err %v %s", err, d.GetQueueName())
 	}
 
-	log.Infof("############ CONSUMER CLOSED queue: %s id: %d ############", d.GetQueueName(), d.GetId())
+	log.Debugf("############ CONSUMER CLOSED queue: %s id: %d ############", d.GetQueueName(), d.GetId())
 	d.closed.setTrue()
 }
 

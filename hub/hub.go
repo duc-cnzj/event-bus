@@ -147,6 +147,7 @@ func (h *Hub) Nack(uniqueId string) error {
 				Status:   models.StatusNacked,
 				RunAfter: &now,
 			}).Error; err != nil {
+				log.Error(err)
 				return err
 			}
 		} else {
@@ -163,6 +164,7 @@ func (h *Hub) Nack(uniqueId string) error {
 	}
 
 	if err = h.GetDBConn().Model(&models.Queue{}).Where("id = ?", queue.ID).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked}).Error; err != nil {
+		log.Error(err)
 		return err
 	}
 
@@ -173,14 +175,14 @@ func (h *Hub) ConsumeDelayPublishQueue() {
 	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeDelayPublishQueue()
 	}
-	log.Infof("back consume confirm queue started.")
+	log.Debug("back consume confirm queue started.")
 }
 
 func (h *Hub) ConsumeConfirmQueue() {
 	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeConfirmQueue()
 	}
-	log.Infof("back consume confirm queue started.")
+	log.Debug("back consume confirm queue started.")
 }
 
 func (h *Hub) consumeConfirmQueue() {
@@ -190,7 +192,7 @@ func (h *Hub) consumeConfirmQueue() {
 	)
 
 	defer func() {
-		log.Error("ConsumeConfirmQueue EXIT")
+		log.Debug("ConsumeConfirmQueue EXIT")
 	}()
 
 	if consumer, err = h.GetConfirmConsumer(); err != nil {
@@ -204,11 +206,11 @@ func (h *Hub) consumeConfirmQueue() {
 		case <-consumer.ChannelDone():
 			return
 		case <-h.Done():
-			log.Error("hub done ConsumeConfirmQueue exit.")
+			log.Debug("hub done ConsumeConfirmQueue exit.")
 			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
-				log.Error("not ok")
+				log.Debug("not ok")
 				delivery.Nack(false, true)
 				return
 			}
@@ -222,7 +224,7 @@ func (h *Hub) ConsumeAckQueue() {
 	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeAckQueue()
 	}
-	log.Infof("back consume ack queue started.")
+	log.Debug("back consume ack queue started.")
 }
 
 func (h *Hub) consumeAckQueue() {
@@ -232,7 +234,7 @@ func (h *Hub) consumeAckQueue() {
 	)
 
 	defer func() {
-		log.Error("ConsumeAckQueue EXIT")
+		log.Debug("ConsumeAckQueue EXIT")
 	}()
 
 	if consumer, err = h.GetAckQueueConsumer(); err != nil {
@@ -247,11 +249,11 @@ func (h *Hub) consumeAckQueue() {
 		case <-consumer.ChannelDone():
 			return
 		case <-h.Done():
-			log.Error("hub done ConsumeAckQueue exit.")
+			log.Debug("hub done ConsumeAckQueue exit.")
 			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
-				log.Error("not ok")
+				log.Debug("not ok")
 				delivery.Nack(false, true)
 				return
 			}
@@ -504,7 +506,7 @@ func (h *Hub) consumeDelayPublishQueue() {
 	)
 
 	defer func() {
-		log.Error("ConsumeDelayPublishQueue EXIT")
+		log.Debug("ConsumeDelayPublishQueue EXIT")
 	}()
 
 	if consumer, err = h.GetDelayPublishConsumer(); err != nil {
@@ -518,11 +520,11 @@ func (h *Hub) consumeDelayPublishQueue() {
 		case <-consumer.ChannelDone():
 			return
 		case <-h.Done():
-			log.Error("hub done ConsumeConfirmQueue exit.")
+			log.Debug("hub done ConsumeConfirmQueue exit.")
 			return
 		case delivery, ok := <-consumer.Delivery():
 			if !ok {
-				log.Error("not ok")
+				log.Debug("not ok")
 				delivery.Nack(false, true)
 				return
 			}
@@ -618,7 +620,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	}
 
 	if queue.Deleted() {
-		log.Warn("queue already deleted ", queue.UniqueId)
+		log.Warnf("queue %s already deleted ", queue.UniqueId)
 		return
 	}
 
@@ -637,7 +639,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 				log.Error(err)
 			}
 		}
-		log.Warn("queue status", queue.NackedAt)
+		log.Debug("queue status ", queue.NackedAt)
 		return
 	}
 

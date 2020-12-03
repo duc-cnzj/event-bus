@@ -5,14 +5,15 @@ import (
 )
 
 type ProducerInterface interface {
+	DelayPublish(string, Message, uint) error
+	Publish(Message) error
 	GetId() int64
+
 	GetConn() *amqp.Connection
 	GetChannel() *amqp.Channel
 	GetQueueName() string
 	GetKind() string
 	GetExchange() string
-	DelayPublish(string, Message, uint) error
-	Publish(Message) error
 	Close()
 	ChannelDone() chan *amqp.Error
 }

@@ -19,9 +19,9 @@ type ConsumerInterface interface {
 	Consume(ctx context.Context) (*Message, error)
 	Ack(string) error
 	Nack(string) error
-
 	Delivery() chan amqp.Delivery
 	GetId() int64
+
 	GetConn() *amqp.Connection
 	GetChannel() *amqp.Channel
 	GetQueueName() string
@@ -29,8 +29,8 @@ type ConsumerInterface interface {
 	GetExchange() string
 	AutoAck() bool
 	Close()
-	RemoveSelf()
 	ChannelDone() chan *amqp.Error
+	RemoveSelf()
 }
 
 type ConsumerBase struct {

@@ -193,7 +193,7 @@ func runCron(h hub.Interface) *cron.Cron {
 
 	if h.Config().CronRepublishEnabled {
 		log.Info("Republish job running.")
-		cr.AddFunc("@every 1s", func() {
+		cr.AddFunc("@every 1m", func() {
 			lock := dlm.NewLock(app.Redis(), "republish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
 				var (
@@ -241,7 +241,7 @@ func runCron(h hub.Interface) *cron.Cron {
 					Where("status in (?, ?)", models.StatusNacked, models.StatusUnknown).
 					Where("retry_times < ?", app.Config().RetryTimes).
 					Where("run_after <= ?", time.Now().Add(-runtimeDelay)).
-					Limit(10000).
+					Limit(60000).
 					Find(&queues).
 					Error; err != nil {
 					log.Panic(err)

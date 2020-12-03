@@ -3,6 +3,7 @@ package hub
 import "time"
 
 type MessageInterface interface {
+	GetKind() string
 	GetData() string
 	GetRunAfter() *time.Time
 	GetDelaySeconds() uint
@@ -20,6 +21,10 @@ type Message struct {
 	DelaySeconds uint       `json:"delay_seconds"`
 	QueueName    string     `json:"queue_name"`
 	AckedAt      time.Time  `json:"acked_at"`
+}
+
+func (m *Message) GetKind() string {
+	return m.Kind
 }
 
 func (m *Message) GetUniqueId() string {
