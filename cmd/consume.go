@@ -4,7 +4,6 @@ import (
 	"context"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/streadway/amqp"
 	"mq/conn"
 	"mq/hub"
 	"os"
@@ -43,7 +42,7 @@ var consumeCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		wg.Add(testConsumerNum)
 		for i := 0; i < testConsumerNum; i++ {
-			consumer, _ := h.ConsumerManager().GetDurableNotAutoDeleteConsumer(testQueueName, amqp.ExchangeDirect, hub.DefaultExchange)
+			consumer, _ := h.ConsumerManager().GetDurableNotAutoDeleteConsumer(testQueueName, kind, topic)
 			go func() {
 				defer wg.Done()
 				for {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/streadway/amqp"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,7 +48,7 @@ var produceCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		wg.Add(testProducerNum)
 		for i := 0; i < testProducerNum; i++ {
-			producer, _ := h.ProducerManager().GetDurableNotAutoDeleteProducer(testQueueName, amqp.ExchangeDirect, hub.DefaultExchange)
+			producer, _ := h.ProducerManager().GetDurableNotAutoDeleteProducer(testQueueName, kind, topic)
 			go func() {
 				defer wg.Done()
 				for {

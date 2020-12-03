@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"mq/hub"
 )
 
 var testMessageTotalNum int64
 var testQueueName string
+var kind string
+var topic string
 var cpuprofile string
 var memprofile string
 var testHost string
@@ -22,6 +25,8 @@ func init() {
 
 	testCmd.PersistentFlags().StringVarP(&testQueueName, "queue", "q", "test_queue", "--queue test_queue")
 	testCmd.PersistentFlags().Int64VarP(&testMessageTotalNum, "total", "t", 0, "--total/-t 1000000")
+	testCmd.PersistentFlags().StringVarP(&kind, "kind", "k", "direct", "--kind/-k direct/fanout")
+	testCmd.PersistentFlags().StringVarP(&topic, "topic", "T", hub.DefaultExchange, "--topic/-T topic")
 
 	rpcPubCmd.PersistentFlags().StringVarP(&cpuprofile, "cpu", "c", "", "--cpu/-c cpu.prof")
 	rpcPubCmd.PersistentFlags().StringVarP(&memprofile, "mem", "m", "", "--mem/-m mem.prof")
