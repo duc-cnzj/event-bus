@@ -404,7 +404,7 @@ func (d *DirectConsumer) Nack(uniqueId string) error {
 }
 
 func (d *DirectConsumer) Delivery() chan amqp.Delivery {
-	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
+	return d.cm.Delivery(getKey(d.queueName, d.kind, d.exchange))
 }
 
 func (d *DirectConsumer) AutoAck() bool {

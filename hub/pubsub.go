@@ -299,7 +299,7 @@ func (d *SubConsumer) Nack(uniqueId string) error {
 }
 
 func (d *SubConsumer) Delivery() chan amqp.Delivery {
-	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
+	return d.cm.Delivery(getKey(d.queueName, d.kind, d.exchange))
 }
 
 func (d *SubConsumer) AutoAck() bool {

@@ -10,7 +10,9 @@ import (
 )
 
 type ProducerManagerInterface interface {
+	// GetDurableNotAutoDeleteProducer durable: true, autoDelete: false
 	GetDurableNotAutoDeleteProducer(queueName, kind, exchange string, opts ...Option) (ProducerInterface, error)
+	// GetProducer durable: false, autoDelete: false
 	GetProducer(queueName, kind, exchange string, opts ...Option) (ProducerInterface, error)
 	RemoveProducer(p ProducerInterface)
 	CloseAll()
@@ -171,12 +173,12 @@ func (pm *ProducerManager) getKey(queueName, kind, exchange string) string {
 }
 
 type ConsumerManagerInterface interface {
-	// GetDurableNotAutoDeleteConsumer 获取 queue、exchange `durable: true` autoDelete False 的 consumer
+	// GetDurableNotAutoDeleteConsumer 获取 queue、exchange `durable: true` `autoDelete: false` `autoAck: false` 的 consumer
 	GetDurableNotAutoDeleteConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error)
-	// GetConsumer 默认 durable false autoDelete false
+	// GetConsumer 默认 `durable: false` `autoDelete: false` `autoAck: false`
 	GetConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error)
 	RemoveConsumer(ConsumerInterface)
-	Delivery(queueName, kind, exchange string) chan amqp.Delivery
+	Delivery(key string) chan amqp.Delivery
 	CloseAll()
 	Count() int
 	Print()
@@ -193,8 +195,7 @@ func NewConsumerManager(hub *Hub) *ConsumerManager {
 	return &ConsumerManager{hub: hub}
 }
 
-func (cm *ConsumerManager) Delivery(queueName, kind, exchange string) chan amqp.Delivery {
-	key := cm.getKey(queueName, kind, exchange)
+func (cm *ConsumerManager) Delivery(key string) chan amqp.Delivery {
 	if load, ok := cm.deliveryMap.Load(key); ok {
 		return load.(chan amqp.Delivery)
 	}

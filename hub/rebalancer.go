@@ -5,6 +5,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"os"
+	"sync"
+	"time"
 )
 
 var RecheckExchange = "recheck_exchange"
@@ -17,7 +19,8 @@ type RecheckMessage struct {
 }
 
 type Rebalancer struct {
-	hub *Hub
+	hub         *Hub
+	syncTimeMap sync.Map
 }
 
 func NewRebalancer(hub *Hub) *Rebalancer {
@@ -34,6 +37,7 @@ func (r *Rebalancer) CheckQueue(queueName, kind, exchange string) {
 		err      error
 		hostname string
 	)
+
 	// 无需持久化
 	if producer, err = r.hub.pm.GetProducer("", amqp.ExchangeFanout, RecheckExchange); err != nil {
 		log.Error(err)
@@ -44,6 +48,7 @@ func (r *Rebalancer) CheckQueue(queueName, kind, exchange string) {
 		log.Error(err)
 		return
 	}
+
 	if marshal, err := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange}); err != nil {
 		log.Error(err)
 	} else {
@@ -100,14 +105,23 @@ func (r *Rebalancer) ListenQueue() {
 					log.Infof("hostname same ignore %s", recheckMsg.Host)
 					break
 				}
-				log.Infof("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)), hostname)
-				if len(r.hub.cm.Delivery(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)) > 0 {
+				key := getKey(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)
+
+				log.Infof("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(key)), hostname)
+				if len(r.hub.cm.Delivery(key)) > 0 {
+					if load, ok := r.syncTimeMap.Load(key); ok {
+						if load.(time.Time).After(time.Now().Add(5 * time.Second)) {
+							log.Warn("5 秒内已经触发过重平衡了")
+							return
+						}
+					}
 					log.Warnf("触发重平衡 %s host: %s", recheckMsg.QueueName, hostname)
 					for {
 						select {
-						case d := <-r.hub.cm.Delivery(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange):
+						case d := <-r.hub.cm.Delivery(key):
 							d.Nack(false, true)
 						default:
+							r.syncTimeMap.Store(key, time.Now())
 							break
 						}
 					}
