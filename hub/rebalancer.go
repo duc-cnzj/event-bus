@@ -37,6 +37,10 @@ func (r *Rebalancer) ReBalance(queueName, kind, exchange string) {
 		err      error
 		hostname string
 	)
+	if len(r.hub.cm.Delivery(getKey(queueName, kind, exchange))) > 0 {
+		return
+	}
+	log.Debugf("heartbeat %s %s %s", queueName, kind, exchange)
 
 	// 无需持久化
 	if producer, err = r.hub.pm.GetProducer("", amqp.ExchangeFanout, RecheckExchange); err != nil {
@@ -65,6 +69,9 @@ func (r *Rebalancer) ListenQueue() {
 		err      error
 		hostname string
 	)
+	defer func() {
+		log.Warn("LISTENER EXIT err: ", err)
+	}()
 
 	if hostname, err = os.Hostname(); err != nil {
 		log.Error(err)
@@ -76,9 +83,9 @@ func (r *Rebalancer) ListenQueue() {
 		return
 	}
 
-	// todo 30秒内不再触发重平衡
 	go func() {
 		for {
+		LABEL:
 			select {
 			case <-r.hub.Done():
 				log.Error("rb hub done。")
@@ -103,11 +110,12 @@ func (r *Rebalancer) ListenQueue() {
 				}
 				key := getKey(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)
 
-				log.Infof("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(key)), hostname)
+				log.Debugf("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(key)), hostname)
 				if len(r.hub.cm.Delivery(key)) > 0 {
 					if load, ok := r.syncTimeMap.Load(key); ok {
 						if load.(time.Time).After(time.Now().Add(3 * time.Second)) {
 							log.Warn("3 秒内已经触发过重平衡了")
+							r.syncTimeMap.Store(key, time.Now())
 							return
 						}
 					}
@@ -118,7 +126,7 @@ func (r *Rebalancer) ListenQueue() {
 							d.Nack(false, true)
 						default:
 							r.syncTimeMap.Store(key, time.Now())
-							break
+							goto LABEL
 						}
 					}
 				}

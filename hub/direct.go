@@ -335,19 +335,6 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		msg         = &Message{}
 	)
 
-	recheckCtx, cancelFn := context.WithCancel(context.Background())
-	defer cancelFn()
-
-	go func() {
-		select {
-		case <-time.After(5 * time.Second):
-			d.hub.ReBalance(d.queueName, d.kind, d.exchange)
-			log.Warnf("队列 %s 触发重平衡", d.queueName)
-		case <-recheckCtx.Done():
-			log.Debug("ReBalance 未触发 exit")
-		}
-	}()
-
 	select {
 	case <-d.hub.Done():
 		log.Debug("hub done")
@@ -611,6 +598,8 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 		log.Debugf("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
 		for {
 			select {
+			case <-time.After(1 * time.Second):
+				d.hub.ReBalance(d.queueName, d.kind, d.exchange)
 			case data, ok := <-d.delivery:
 				if !ok {
 					return
