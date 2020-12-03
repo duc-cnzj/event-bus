@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var RecheckExchange = "recheck_exchange"
+var RecheckExchange = "recheck_exchange_for_rebalancer"
 
 type RecheckMessage struct {
 	QueueName string
