@@ -22,6 +22,23 @@ type DirectProducer struct {
 	*ProducerBase
 }
 
+func newDirectProducer(queueName, exchange string, hub Interface, id int64, opts ...Option) ProducerBuilder {
+	d := &DirectProducer{ProducerBase: &ProducerBase{
+		id:        id,
+		pm:        hub.ProducerManager(),
+		queueName: queueName,
+		kind:      amqp.ExchangeDirect,
+		hub:       hub,
+		exchange:  exchange,
+	}}
+
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
+}
+
 func (d *DirectProducer) WithConsumerAck(needAck bool) {
 	panic("implement me")
 }
@@ -40,23 +57,6 @@ func (d *DirectProducer) WithQueueAutoDelete(autoDelete bool) {
 
 func (d *DirectProducer) WithQueueDurable(durable bool) {
 	d.queueDurable = durable
-}
-
-func newDirectProducer(queueName, exchange string, hub Interface, id int64, opts ...Option) ProducerBuilder {
-	d := &DirectProducer{ProducerBase: &ProducerBase{
-		id:        id,
-		pm:        hub.ProducerManager(),
-		queueName: queueName,
-		kind:      amqp.ExchangeDirect,
-		hub:       hub,
-		exchange:  exchange,
-	}}
-
-	for _, opt := range opts {
-		opt(d)
-	}
-
-	return d
 }
 
 func (d *DirectProducer) GetId() int64 {

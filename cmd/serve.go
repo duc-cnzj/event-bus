@@ -143,7 +143,7 @@ func runHttp(h hub.Interface) {
 		)
 		queueName := bytes.NewBufferString(ctx.Query("queue", "test_queue")).String()
 
-		if p, err = h.NewProducer(queueName, amqp.ExchangeDirect); err != nil {
+		if p, err = h.NewDurableNotAutoDeleteProducer(queueName, amqp.ExchangeDirect); err != nil {
 			ctx.Status(fiber.StatusServiceUnavailable)
 
 			return ctx.SendString("server unavailable")
@@ -269,7 +269,7 @@ func runCron(h hub.Interface) *cron.Cron {
 									log.Error("republish: hub closed")
 									return
 								}
-								if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
+								if producer, err = h.NewDurableNotAutoDeleteProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 									return
 								}
 
@@ -366,7 +366,7 @@ func runCron(h hub.Interface) *cron.Cron {
 									log.Error("delay publish: hub closed")
 									return
 								}
-								if producer, err = h.NewProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
+								if producer, err = h.NewDurableNotAutoDeleteProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
 									return
 								}
 								err := producer.Publish(hub.Message{

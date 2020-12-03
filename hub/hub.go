@@ -47,8 +47,8 @@ type Interface interface {
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
 
-	NewProducer(queueName, kind string) (ProducerInterface, error)
-	NewConsumer(queueName, kind string) (ConsumerInterface, error)
+	NewDurableNotAutoDeleteProducer(queueName, kind string, opts ...Option) (ProducerInterface, error)
+	NewDurableNotAutoDeleteConsumer(queueName, kind string, opts ...Option) (ConsumerInterface, error)
 
 	RemoveProducer(p ProducerInterface)
 	RemoveConsumer(c ConsumerInterface)
@@ -350,26 +350,26 @@ func (h *Hub) ConsumerManager() ConsumerManagerInterface {
 	return h.cm
 }
 
-func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
+func (h *Hub) NewDurableNotAutoDeleteProducer(queueName, kind string, opts ...Option) (ProducerInterface, error) {
 	var (
 		producer ProducerInterface
 		err      error
 	)
 
 	if h.IsClosed() {
-		log.Debug("hub.NewProducer but hub closed.")
+		log.Debug("hub.NewDurableNotAutoDeleteProducer but hub closed.")
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(queueName, kind, DefaultExchange); err != nil {
-		log.Debugf("hub.NewProducer GetDurableNotAutoDeleteProducer err %v.", err)
+	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(queueName, kind, DefaultExchange, opts...); err != nil {
+		log.Debugf("hub.NewDurableNotAutoDeleteProducer GetDurableNotAutoDeleteProducer err %v.", err)
 		return nil, err
 	}
 
 	return producer, nil
 }
 
-func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
+func (h *Hub) NewDurableNotAutoDeleteConsumer(queueName, kind string, opts ...Option) (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
 		err      error
@@ -379,7 +379,7 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(queueName, kind, DefaultExchange); err != nil {
+	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(queueName, kind, DefaultExchange, opts...); err != nil {
 		return nil, err
 	}
 

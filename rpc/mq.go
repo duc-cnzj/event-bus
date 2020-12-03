@@ -109,9 +109,9 @@ func (m *MQ) mustEmbedUnimplementedMQServer() {
 }
 
 func (m *MQ) newProducer(queueName string) (hub.ProducerInterface, error) {
-	return m.Hub.NewProducer(queueName, amqp.ExchangeDirect)
+	return m.Hub.NewDurableNotAutoDeleteProducer(queueName, amqp.ExchangeDirect)
 }
 
 func (m *MQ) newConsumer(queueName string) (hub.ConsumerInterface, error) {
-	return m.Hub.NewConsumer(queueName, amqp.ExchangeDirect)
+	return m.Hub.NewDurableNotAutoDeleteConsumer(queueName, amqp.ExchangeDirect)
 }
