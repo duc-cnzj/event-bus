@@ -165,7 +165,7 @@ func runHttp(h hub.Interface) {
 		log.Debug("web delay_pub")
 		queueName := bytes.NewBufferString(ctx.Query("queue", "test_queue")).String()
 
-		if err := h.DelayPublish(queueName, hub.Message{Data: "pub"}, 600); err != nil {
+		if err := h.DelayPublish(queueName, amqp.ExchangeDirect, hub.Message{Data: "pub"}, 600); err != nil {
 			log.Debug("http: /pub error", err)
 		}
 
@@ -276,6 +276,7 @@ func runCron(h hub.Interface) *cron.Cron {
 								if queue.Nackd() {
 									if err := h.DelayPublish(
 										queue.QueueName,
+										queue.Kind,
 										hub.Message{
 											RetryTimes: queue.RetryTimes + 1,
 											Data:       queue.Data,

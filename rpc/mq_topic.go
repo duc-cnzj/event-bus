@@ -10,24 +10,24 @@ import (
 	mq "mq/protos"
 )
 
-type MQ struct {
-	mq.UnimplementedMqServer
+type MQTopic struct {
+	mq.UnimplementedMqTopicServer
 	Hub hub.Interface
 }
 
 // 推送消息
-func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*empty.Empty, error) {
-	log.Debug("publish", pub.Data, pub.Queue)
+func (m *MQTopic) Publish(ctx context.Context, pub *mq.TopicPublishRequest) (*empty.Empty, error) {
+	log.Debug("publish", pub.Data, pub.Topic)
 	var (
 		producer hub.ProducerInterface
 		err      error
 	)
 
-	if pub.Queue == "" || pub.Data == "" {
+	if pub.Topic == "" || pub.Data == "" {
 		return nil, errors.New("queue and data can't empty")
 	}
 
-	if producer, err = m.newProducer(pub.Queue); err != nil {
+	if producer, err = m.newProducer(pub.Topic); err != nil {
 		return nil, err
 	}
 
@@ -39,15 +39,16 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*empty.Empty,
 }
 
 // DelayPublish 延迟推送
-func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*empty.Empty, error) {
-	log.Debug("delay publish", req.Queue)
+// todo
+func (m *MQTopic) DelayPublish(ctx context.Context, req *mq.DelayTopicPublishRequest) (*empty.Empty, error) {
+	log.Debug("delay publish", req.Topic)
 	var (
 		err error
 	)
 
 	if err = m.Hub.DelayPublish(
-		req.Queue,
-		amqp.ExchangeDirect,
+		"",
+		req.Topic,
 		hub.Message{Data: req.Data},
 		uint(req.DelaySeconds),
 	); err != nil {
@@ -58,7 +59,7 @@ func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*em
 }
 
 // Subscribe 订阅消息
-func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.SubscribeResponse, error) {
+func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.SubscribeResponse, error) {
 	log.Debug("Subscribe", sub.Queue)
 	var (
 		consumer hub.ConsumerInterface
@@ -84,7 +85,7 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Subsc
 }
 
 // Ack 客户端确认已消费成功
-func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
+func (m *MQTopic) Ack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
 	log.Debug("Ack", queueId.Id)
 
 	if err := m.Hub.Ack(queueId.GetId()); err != nil {
@@ -95,7 +96,7 @@ func (m *MQ) Ack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error)
 }
 
 // Nack 客户端拒绝消费
-func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
+func (m *MQTopic) Nack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error) {
 	log.Debug("Nack", queueId.Id)
 
 	if err := m.Hub.Nack(queueId.GetId()); err != nil {
@@ -105,14 +106,14 @@ func (m *MQ) Nack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, error
 	return &empty.Empty{}, nil
 }
 
-func (m *MQ) mustEmbedUnimplementedMQServer() {
+func (m *MQTopic) mustEmbedUnimplementedMQServer() {
 	panic("implement me")
 }
 
-func (m *MQ) newProducer(queueName string) (hub.ProducerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeleteProducer(queueName, amqp.ExchangeDirect)
+func (m *MQTopic) newProducer(exchange string) (hub.ProducerInterface, error) {
+	return m.Hub.ProducerManager().GetProducer("", amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
 }
 
-func (m *MQ) newConsumer(queueName string) (hub.ConsumerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeleteConsumer(queueName, amqp.ExchangeDirect)
+func (m *MQTopic) newConsumer(exchange string) (hub.ConsumerInterface, error) {
+	return m.Hub.ConsumerManager().GetConsumer("", amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
 }

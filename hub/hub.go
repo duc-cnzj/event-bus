@@ -45,7 +45,7 @@ type Interface interface {
 	Ack(string) error
 	Nack(string) error
 
-	DelayPublish(string, Message, uint) error
+	DelayPublish(queueName, kind string, msg Message, delaySeconds uint) error
 
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
@@ -468,12 +468,13 @@ func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
-func (h *Hub) DelayPublish(queueName string, msg Message, delaySeconds uint) error {
+func (h *Hub) DelayPublish(queueName, kind string, msg Message, delaySeconds uint) error {
 	var (
 		producer ProducerInterface
 		err      error
 	)
 	msg.QueueName = queueName
+	msg.Kind = kind
 	msg.DelaySeconds = delaySeconds
 	runAfter := time.Now().Add(time.Duration(delaySeconds) * time.Second)
 	msg.RunAfter = &runAfter
@@ -534,6 +535,7 @@ func (h *Hub) consumeDelayPublishQueue() {
 			runAfter := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
 
 			if err = h.GetDBConn().Create(&models.DelayQueue{
+				Kind:         msg.Kind,
 				RetryTimes:   msg.RetryTimes,
 				UniqueId:     msg.UniqueId,
 				Data:         msg.Data,
@@ -590,8 +592,9 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 			} else {
 				if err = db.Clauses(clause.OnConflict{
 					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"run_after", "retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
+					DoUpdates: clause.AssignmentColumns([]string{"kind", "run_after", "retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
 				}).Create(&models.Queue{
+					Kind:        msg.Kind,
 					UniqueId:    msg.UniqueId,
 					RetryTimes:  msg.RetryTimes,
 					ConfirmedAt: &now,
@@ -618,6 +621,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 	if queue.Nackd() {
 		if !queue.Confirmed() {
 			if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+				Kind:        msg.Kind,
 				RetryTimes:  msg.RetryTimes,
 				ConfirmedAt: &now,
 				Data:        msg.Data,
@@ -639,6 +643,7 @@ func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
 		}
 	} else if !queue.Confirmed() {
 		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+			Kind:        msg.Kind,
 			RetryTimes:  msg.RetryTimes,
 			ConfirmedAt: &now,
 			Data:        msg.Data,

@@ -64,7 +64,7 @@ func (d *DirectProducer) GetId() int64 {
 }
 
 func (d *DirectProducer) DelayPublish(queueName string, message Message, delaySeconds uint) error {
-	return d.hub.DelayPublish(queueName, message, delaySeconds)
+	return d.hub.DelayPublish(queueName, d.kind, message, delaySeconds)
 }
 
 func (d *DirectProducer) Publish(message Message) error {
@@ -72,6 +72,7 @@ func (d *DirectProducer) Publish(message Message) error {
 		body []byte
 		err  error
 	)
+	message.Kind = amqp.ExchangeDirect
 	if message.QueueName == "" {
 		message.QueueName = d.GetQueueName()
 	}

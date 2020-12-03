@@ -45,3 +45,31 @@ service Mq {
   // php:inline
   rpc nack(QueueId) returns (google.protobuf.Empty);
 }
+
+message TopicPublishRequest {
+    string topic = 1;
+    string data = 2;
+}
+
+message DelayTopicPublishRequest {
+    string topic = 1;
+    string data = 2;
+    uint64 delaySeconds = 3;
+}
+
+message TopicSubscribeRequest {
+  string topic = 1;
+}
+
+service MqTopic {
+  // php:inline
+  rpc publish(TopicPublishRequest) returns (google.protobuf.Empty);
+  // php:inline
+  rpc delayPublish(DelayTopicPublishRequest) returns (google.protobuf.Empty);
+  // php:inline
+  rpc subscribe(TopicSubscribeRequest) returns (SubscribeResponse);
+  // php:inline
+  rpc ack(QueueId) returns (google.protobuf.Empty);
+  // php:inline
+  rpc nack(QueueId) returns (google.protobuf.Empty);
+}

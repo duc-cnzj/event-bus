@@ -172,6 +172,7 @@ func (p *PubProducer) GetQueueName() string {
 func (p *PubProducer) GetKind() string {
 	return p.kind
 }
+
 func (p *PubProducer) GetExchange() string {
 	return p.exchange
 }
@@ -185,6 +186,7 @@ func (p *PubProducer) Publish(message Message) error {
 		body []byte
 		err  error
 	)
+	message.Kind = amqp.ExchangeFanout
 	if message.QueueName == "" {
 		message.QueueName = p.GetQueueName()
 	}

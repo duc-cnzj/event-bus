@@ -15,6 +15,7 @@ type DelayQueue struct {
 	DelaySeconds uint       `json:"delay_seconds" gorm:"not null;default:0;"`
 	Ref          string     `json:"ref" gorm:"index:ref_idx;type:string;"`
 	RetryTimes   int        `json:"retry_times" gorm:"default:0;"`
+	Kind         string     `json:"kind"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

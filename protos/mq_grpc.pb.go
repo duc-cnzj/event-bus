@@ -250,3 +250,240 @@ var _Mq_serviceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "mq.proto",
 }
+
+// MqTopicClient is the client API for MqTopic service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MqTopicClient interface {
+	// php:inline
+	Publish(ctx context.Context, in *TopicPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// php:inline
+	DelayPublish(ctx context.Context, in *DelayTopicPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error)
+	// php:inline
+	Subscribe(ctx context.Context, in *TopicSubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error)
+	// php:inline
+	Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error)
+	// php:inline
+	Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error)
+}
+
+type mqTopicClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMqTopicClient(cc grpc.ClientConnInterface) MqTopicClient {
+	return &mqTopicClient{cc}
+}
+
+func (c *mqTopicClient) Publish(ctx context.Context, in *TopicPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/mq.MqTopic/publish", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mqTopicClient) DelayPublish(ctx context.Context, in *DelayTopicPublishRequest, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/mq.MqTopic/delayPublish", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mqTopicClient) Subscribe(ctx context.Context, in *TopicSubscribeRequest, opts ...grpc.CallOption) (*SubscribeResponse, error) {
+	out := new(SubscribeResponse)
+	err := c.cc.Invoke(ctx, "/mq.MqTopic/subscribe", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mqTopicClient) Ack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/mq.MqTopic/ack", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mqTopicClient) Nack(ctx context.Context, in *QueueId, opts ...grpc.CallOption) (*empty.Empty, error) {
+	out := new(empty.Empty)
+	err := c.cc.Invoke(ctx, "/mq.MqTopic/nack", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MqTopicServer is the server API for MqTopic service.
+// All implementations must embed UnimplementedMqTopicServer
+// for forward compatibility
+type MqTopicServer interface {
+	// php:inline
+	Publish(context.Context, *TopicPublishRequest) (*empty.Empty, error)
+	// php:inline
+	DelayPublish(context.Context, *DelayTopicPublishRequest) (*empty.Empty, error)
+	// php:inline
+	Subscribe(context.Context, *TopicSubscribeRequest) (*SubscribeResponse, error)
+	// php:inline
+	Ack(context.Context, *QueueId) (*empty.Empty, error)
+	// php:inline
+	Nack(context.Context, *QueueId) (*empty.Empty, error)
+	mustEmbedUnimplementedMqTopicServer()
+}
+
+// UnimplementedMqTopicServer must be embedded to have forward compatible implementations.
+type UnimplementedMqTopicServer struct {
+}
+
+func (UnimplementedMqTopicServer) Publish(context.Context, *TopicPublishRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Publish not implemented")
+}
+func (UnimplementedMqTopicServer) DelayPublish(context.Context, *DelayTopicPublishRequest) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DelayPublish not implemented")
+}
+func (UnimplementedMqTopicServer) Subscribe(context.Context, *TopicSubscribeRequest) (*SubscribeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Subscribe not implemented")
+}
+func (UnimplementedMqTopicServer) Ack(context.Context, *QueueId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Ack not implemented")
+}
+func (UnimplementedMqTopicServer) Nack(context.Context, *QueueId) (*empty.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Nack not implemented")
+}
+func (UnimplementedMqTopicServer) mustEmbedUnimplementedMqTopicServer() {}
+
+// UnsafeMqTopicServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MqTopicServer will
+// result in compilation errors.
+type UnsafeMqTopicServer interface {
+	mustEmbedUnimplementedMqTopicServer()
+}
+
+func RegisterMqTopicServer(s grpc.ServiceRegistrar, srv MqTopicServer) {
+	s.RegisterService(&_MqTopic_serviceDesc, srv)
+}
+
+func _MqTopic_Publish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TopicPublishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqTopicServer).Publish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.MqTopic/publish",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqTopicServer).Publish(ctx, req.(*TopicPublishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MqTopic_DelayPublish_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DelayTopicPublishRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqTopicServer).DelayPublish(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.MqTopic/delayPublish",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqTopicServer).DelayPublish(ctx, req.(*DelayTopicPublishRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MqTopic_Subscribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TopicSubscribeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqTopicServer).Subscribe(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.MqTopic/subscribe",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqTopicServer).Subscribe(ctx, req.(*TopicSubscribeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MqTopic_Ack_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueueId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqTopicServer).Ack(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.MqTopic/ack",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqTopicServer).Ack(ctx, req.(*QueueId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MqTopic_Nack_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueueId)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MqTopicServer).Nack(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/mq.MqTopic/nack",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MqTopicServer).Nack(ctx, req.(*QueueId))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _MqTopic_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "mq.MqTopic",
+	HandlerType: (*MqTopicServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "publish",
+			Handler:    _MqTopic_Publish_Handler,
+		},
+		{
+			MethodName: "delayPublish",
+			Handler:    _MqTopic_DelayPublish_Handler,
+		},
+		{
+			MethodName: "subscribe",
+			Handler:    _MqTopic_Subscribe_Handler,
+		},
+		{
+			MethodName: "ack",
+			Handler:    _MqTopic_Ack_Handler,
+		},
+		{
+			MethodName: "nack",
+			Handler:    _MqTopic_Nack_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "mq.proto",
+}
