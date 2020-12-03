@@ -85,7 +85,6 @@ func (r *Rebalancer) ListenQueue() {
 
 	go func() {
 		for {
-		LABEL:
 			select {
 			case <-r.hub.Done():
 				log.Error("rb hub done。")
@@ -115,22 +114,25 @@ func (r *Rebalancer) ListenQueue() {
 					if load, ok := r.syncTimeMap.Load(key); ok {
 						if load.(time.Time).After(time.Now().Add(3 * time.Second)) {
 							log.Warn("3 秒内已经触发过重平衡了")
-							r.syncTimeMap.Store(key, time.Now())
 							return
 						}
 					}
 					log.Warnf("触发重平衡 %s host: %s", recheckMsg.QueueName, hostname)
-					for {
-						select {
-						case d := <-r.hub.cm.Delivery(key):
-							d.Nack(false, true)
-						default:
-							r.syncTimeMap.Store(key, time.Now())
-							goto LABEL
-						}
-					}
+					go nackDelivery(r, key)
 				}
 			}
 		}
 	}()
+}
+
+func nackDelivery(r *Rebalancer, key string) {
+	for {
+		select {
+		case d := <-r.hub.cm.Delivery(key):
+			d.Nack(false, true)
+		default:
+			r.syncTimeMap.Store(key, time.Now())
+			return
+		}
+	}
 }
