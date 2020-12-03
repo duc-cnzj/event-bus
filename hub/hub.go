@@ -260,7 +260,7 @@ func (h *Hub) GetDelayPublishConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -273,7 +273,7 @@ func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -292,7 +292,7 @@ func (h *Hub) GetDelayPublishProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -305,7 +305,7 @@ func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -318,7 +318,7 @@ func (h *Hub) GetAckQueueConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetConsumer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -331,7 +331,7 @@ func (h *Hub) GetAckQueueProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetProducer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
 		return nil, err
 	}
 
@@ -361,8 +361,8 @@ func (h *Hub) NewProducer(queueName, kind string) (ProducerInterface, error) {
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.ProducerManager().GetProducer(queueName, kind, DefaultExchange); err != nil {
-		log.Debugf("hub.NewProducer GetProducer err %v.", err)
+	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(queueName, kind, DefaultExchange); err != nil {
+		log.Debugf("hub.NewProducer GetDurableNotAutoDeleteProducer err %v.", err)
 		return nil, err
 	}
 
@@ -379,7 +379,7 @@ func (h *Hub) NewConsumer(queueName, kind string) (ConsumerInterface, error) {
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind, DefaultExchange); err != nil {
+	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(queueName, kind, DefaultExchange); err != nil {
 		return nil, err
 	}
 

@@ -2,6 +2,8 @@ package lb
 
 import (
 	"fmt"
+	"github.com/rs/xid"
+	"hash/crc32"
 	"strconv"
 	"sync"
 	"testing"
@@ -94,4 +96,15 @@ func BenchmarkNewLoadBalancer(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		lb.Get()
 	}
+}
+
+func TestAAA(t *testing.T) {
+	s := make([][]byte, 10)
+	r := make([]uint32, 10)
+	for i := 0; i < 10; i++ {
+		s[i] = xid.New().Bytes()
+		r[i] = crc32.ChecksumIEEE(s[i]) % 10
+	}
+	//i := crc32.ChecksumIEEE(a)
+	fmt.Println(r, s)
 }

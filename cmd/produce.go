@@ -49,7 +49,7 @@ var produceCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		wg.Add(testProducerNum)
 		for i := 0; i < testProducerNum; i++ {
-			producer, _ := h.ProducerManager().GetProducer(testQueueName, amqp.ExchangeDirect, hub.DefaultExchange)
+			producer, _ := h.ProducerManager().GetDurableNotAutoDeleteProducer(testQueueName, amqp.ExchangeDirect, hub.DefaultExchange)
 			go func() {
 				defer wg.Done()
 				for {

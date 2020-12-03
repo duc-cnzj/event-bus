@@ -15,12 +15,34 @@ import (
 
 var _ ProducerInterface = (*DirectProducer)(nil)
 var _ ConsumerInterface = (*DirectConsumer)(nil)
+var _ MqConfigInterface = (*DirectConsumer)(nil)
+var _ MqConfigInterface = (*DirectProducer)(nil)
 
 type DirectProducer struct {
 	*ProducerBase
 }
 
-func NewDirectProducer(queueName, exchange string, hub Interface, id int64) ProducerBuilder {
+func (d *DirectProducer) WithConsumerAck(needAck bool) {
+	panic("implement me")
+}
+
+func (d *DirectProducer) WithExchangeDurable(durable bool) {
+	d.exchangeDurable = durable
+}
+
+func (d *DirectProducer) WithExchangeAutoDelete(autoDelete bool) {
+	d.exchangeAutoDelete = autoDelete
+}
+
+func (d *DirectProducer) WithQueueAutoDelete(autoDelete bool) {
+	d.queueAutoDelete = autoDelete
+}
+
+func (d *DirectProducer) WithQueueDurable(durable bool) {
+	d.queueDurable = durable
+}
+
+func newDirectProducer(queueName, exchange string, hub Interface, id int64, opts ...Option) ProducerBuilder {
 	d := &DirectProducer{ProducerBase: &ProducerBase{
 		id:        id,
 		pm:        hub.ProducerManager(),
@@ -29,6 +51,10 @@ func NewDirectProducer(queueName, exchange string, hub Interface, id int64) Prod
 		hub:       hub,
 		exchange:  exchange,
 	}}
+
+	for _, opt := range opts {
+		opt(d)
+	}
 
 	return d
 }
@@ -95,6 +121,7 @@ func (d *DirectProducer) GetQueueName() string {
 func (d *DirectProducer) GetKind() string {
 	return d.kind
 }
+
 func (d *DirectProducer) GetExchange() string {
 	return d.exchange
 }
@@ -139,8 +166,8 @@ func (d *DirectProducer) PrepareExchange() error {
 	if err = d.channel.ExchangeDeclare(
 		d.exchange,
 		d.kind,
-		true,
-		false,
+		d.exchangeDurable,
+		d.exchangeAutoDelete,
 		false,
 		false,
 		nil,
@@ -162,8 +189,8 @@ func (d *DirectProducer) PrepareQueueDeclare() error {
 
 	if queue, err = d.channel.QueueDeclare(
 		d.queueName,
-		true,
-		false,
+		d.queueDurable,
+		d.queueAutoDelete,
 		false,
 		false,
 		nil,
@@ -263,8 +290,8 @@ type DirectConsumer struct {
 	*ConsumerBase
 }
 
-func NewDirectConsumer(queueName, exchange string, hub Interface, id int64) ConsumerBuilder {
-	return &DirectConsumer{ConsumerBase: &ConsumerBase{
+func newDirectConsumer(queueName, exchange string, hub Interface, id int64, opts ...Option) ConsumerBuilder {
+	dc := &DirectConsumer{ConsumerBase: &ConsumerBase{
 		id:        id,
 		cm:        hub.ConsumerManager(),
 		queueName: queueName,
@@ -272,41 +299,32 @@ func NewDirectConsumer(queueName, exchange string, hub Interface, id int64) Cons
 		hub:       hub,
 		exchange:  exchange,
 	}}
+
+	for _, opt := range opts {
+		opt(dc)
+	}
+
+	return dc
 }
 
-func (d *DirectConsumer) Ack(uniqueId string) error {
-	return d.hub.Ack(uniqueId)
+func (d *DirectConsumer) WithConsumerAck(needAck bool) {
+	d.autoAck = !needAck
 }
 
-func (d *DirectConsumer) GetId() int64 {
-	return d.id
+func (d *DirectConsumer) WithExchangeDurable(durable bool) {
+	d.exchangeDurable = durable
 }
 
-func (d *DirectConsumer) Nack(uniqueId string) error {
-	return d.hub.Nack(uniqueId)
+func (d *DirectConsumer) WithExchangeAutoDelete(autoDelete bool) {
+	d.exchangeAutoDelete = autoDelete
 }
 
-func (d *DirectConsumer) Delivery() chan amqp.Delivery {
-	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
+func (d *DirectConsumer) WithQueueAutoDelete(autoDelete bool) {
+	d.queueAutoDelete = autoDelete
 }
 
-func (d *DirectConsumer) GetConn() *amqp.Connection {
-	return d.conn
-}
-
-func (d *DirectConsumer) GetChannel() *amqp.Channel {
-	return d.channel
-}
-
-func (d *DirectConsumer) GetQueueName() string {
-	return d.queue.Name
-}
-
-func (d *DirectConsumer) GetKind() string {
-	return d.kind
-}
-func (d *DirectConsumer) GetExchange() string {
-	return d.exchange
+func (d *DirectConsumer) WithQueueDurable(durable bool) {
+	d.queueDurable = durable
 }
 
 func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
@@ -342,19 +360,22 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 
 			return nil, ErrorServerUnavailable
 		}
-		if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
-			log.Debug(err)
-			data.Nack(false, true)
-			return nil, err
-		}
 
 		json.Unmarshal(data.Body, &msg)
 		msg.RunAfter = nextRunTime(msg, d.hub.Config())
 
-		if err := ackProducer.Publish(*msg); err != nil {
-			log.Debug(err)
-			data.Nack(false, true)
-			return nil, err
+		if d.AutoAck() {
+			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
+				log.Debug(err)
+				data.Nack(false, true)
+				return nil, err
+			}
+
+			if err := ackProducer.Publish(*msg); err != nil {
+				log.Debug(err)
+				data.Nack(false, true)
+				return nil, err
+			}
 		}
 
 		if err := data.Ack(false); err != nil {
@@ -366,33 +387,52 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 	}
 }
 
-func (d *DirectConsumer) PrepareDelivery() error {
-	var (
-		delivery <-chan amqp.Delivery
-		err      error
-	)
-	if delivery, err = d.channel.Consume(d.queueName, "", false, false, false, false, nil); err != nil {
-		return err
+func (d *DirectConsumer) Ack(uniqueId string) error {
+	if d.AutoAck() {
+		return d.hub.Ack(uniqueId)
 	}
-	d.delivery = delivery
 
 	return nil
 }
 
-func (d *DirectConsumer) PrepareQos() error {
-	if d.hub.Config().PrefetchCount == 0 {
-		return nil
-	}
-
-	if err := d.channel.Qos(
-		d.hub.Config().PrefetchCount, // prefetch count
-		0,                            // prefetch size
-		false,                        // global
-	); err != nil {
-		return err
+func (d *DirectConsumer) Nack(uniqueId string) error {
+	if d.AutoAck() {
+		return d.hub.Nack(uniqueId)
 	}
 
 	return nil
+}
+
+func (d *DirectConsumer) Delivery() chan amqp.Delivery {
+	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
+}
+
+func (d *DirectConsumer) AutoAck() bool {
+	return d.autoAck
+}
+
+func (d *DirectConsumer) GetId() int64 {
+	return d.id
+}
+
+func (d *DirectConsumer) GetConn() *amqp.Connection {
+	return d.conn
+}
+
+func (d *DirectConsumer) GetChannel() *amqp.Channel {
+	return d.channel
+}
+
+func (d *DirectConsumer) GetQueueName() string {
+	return d.queue.Name
+}
+
+func (d *DirectConsumer) GetKind() string {
+	return d.kind
+}
+
+func (d *DirectConsumer) GetExchange() string {
+	return d.exchange
 }
 
 func (d *DirectConsumer) PrepareConn() error {
@@ -412,20 +452,6 @@ func (d *DirectConsumer) PrepareConn() error {
 	return nil
 }
 
-func (d *DirectConsumer) PrepareChannel() error {
-	defer func(t time.Time) { log.Debugf("DirectConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
-
-	var (
-		err error
-	)
-
-	if d.channel, err = d.conn.Channel(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (d *DirectConsumer) PrepareExchange() error {
 	defer func(t time.Time) { log.Debugf("DirectConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
 
@@ -435,8 +461,8 @@ func (d *DirectConsumer) PrepareExchange() error {
 	if err = d.channel.ExchangeDeclare(
 		d.exchange,
 		d.kind,
-		true,
-		false,
+		d.exchangeDurable,
+		d.exchangeAutoDelete,
 		false,
 		false,
 		nil,
@@ -455,8 +481,8 @@ func (d *DirectConsumer) PrepareQueueDeclare() error {
 	)
 	if queue, err = d.channel.QueueDeclare(
 		d.queueName,
-		true,
-		false,
+		d.queueDurable,
+		d.queueAutoDelete,
 		false,
 		false,
 		nil,
@@ -475,6 +501,49 @@ func (d *DirectConsumer) PrepareQueueBind() error {
 	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), d.exchange, false, nil); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (d *DirectConsumer) PrepareQos() error {
+	if d.hub.Config().PrefetchCount == 0 {
+		return nil
+	}
+
+	if err := d.channel.Qos(
+		d.hub.Config().PrefetchCount, // prefetch count
+		0,                            // prefetch size
+		false,                        // global
+	); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (d *DirectConsumer) PrepareDelivery() error {
+	var (
+		delivery <-chan amqp.Delivery
+		err      error
+	)
+	if delivery, err = d.channel.Consume(d.queueName, "", d.autoAck, false, false, false, nil); err != nil {
+		return err
+	}
+	d.delivery = delivery
+
+	return nil
+}
+
+func (d *DirectConsumer) PrepareChannel() error {
+	defer func(t time.Time) { log.Debugf("DirectConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
+
+	var (
+		err error
+	)
+
+	if d.channel, err = d.conn.Channel(); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -5,19 +5,32 @@ import (
 	"github.com/streadway/amqp"
 )
 
+type MqConfigInterface interface {
+	WithConsumerAck(needAck bool)
+
+	WithExchangeDurable(durable bool)
+	WithExchangeAutoDelete(autoDelete bool)
+
+	WithQueueAutoDelete(autoDelete bool)
+	WithQueueDurable(durable bool)
+}
+
 type ConsumerInterface interface {
+	Consume(ctx context.Context) (*Message, error)
+	Ack(string) error
+	Nack(string) error
+
+	Delivery() chan amqp.Delivery
 	GetId() int64
 	GetConn() *amqp.Connection
 	GetChannel() *amqp.Channel
 	GetQueueName() string
 	GetKind() string
 	GetExchange() string
-	Consume(ctx context.Context) (*Message, error)
-	Ack(string) error
-	Nack(string) error
+	AutoAck() bool
 	Close()
+	RemoveSelf()
 	ChannelDone() chan *amqp.Error
-	Delivery() chan amqp.Delivery
 }
 
 type ConsumerBase struct {
@@ -29,6 +42,14 @@ type ConsumerBase struct {
 	channel   *amqp.Channel
 	exchange  string
 
+	queueAutoDelete bool
+	queueDurable    bool
+
+	exchangeDurable    bool
+	exchangeAutoDelete bool
+
+	autoAck bool
+
 	delivery <-chan amqp.Delivery
 
 	kind string
@@ -37,4 +58,36 @@ type ConsumerBase struct {
 	closed atomicBool
 
 	closeChan chan *amqp.Error
+}
+
+type Option func(cci MqConfigInterface)
+
+func WithConsumerAck(needAck bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithConsumerAck(needAck)
+	}
+}
+
+func WithExchangeDurable(durable bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithExchangeDurable(durable)
+	}
+}
+
+func WithExchangeAutoDelete(autoDelete bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithExchangeAutoDelete(autoDelete)
+	}
+}
+
+func WithQueueAutoDelete(autoDelete bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithQueueAutoDelete(autoDelete)
+	}
+}
+
+func WithQueueDurable(durable bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithQueueDurable(durable)
+	}
 }

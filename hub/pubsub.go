@@ -13,12 +13,34 @@ import (
 
 var _ ProducerInterface = (*PubProducer)(nil)
 var _ ConsumerInterface = (*SubConsumer)(nil)
+var _ MqConfigInterface = (*SubConsumer)(nil)
+var _ MqConfigInterface = (*PubProducer)(nil)
 
 type PubProducer struct {
 	*ProducerBase
 }
 
-func NewPubProducer(exchange string, hub Interface, id int64) ProducerBuilder {
+func (p *PubProducer) WithConsumerAck(needAck bool) {
+	panic("implement me")
+}
+
+func (p *PubProducer) WithExchangeDurable(durable bool) {
+	p.exchangeDurable = durable
+}
+
+func (p *PubProducer) WithExchangeAutoDelete(autoDelete bool) {
+	p.exchangeAutoDelete = autoDelete
+}
+
+func (p *PubProducer) WithQueueAutoDelete(autoDelete bool) {
+	p.queueAutoDelete = autoDelete
+}
+
+func (p *PubProducer) WithQueueDurable(durable bool) {
+	p.queueDurable = durable
+}
+
+func newPubProducer(exchange string, hub Interface, id int64, opts ...Option) ProducerBuilder {
 	d := &PubProducer{ProducerBase: &ProducerBase{
 		id:       id,
 		pm:       hub.ProducerManager(),
@@ -26,6 +48,10 @@ func NewPubProducer(exchange string, hub Interface, id int64) ProducerBuilder {
 		hub:      hub,
 		exchange: exchange,
 	}}
+
+	for _, opt := range opts {
+		opt(d)
+	}
 
 	return d
 }
@@ -70,8 +96,8 @@ func (p *PubProducer) PrepareExchange() error {
 	if err = p.channel.ExchangeDeclare(
 		p.exchange,
 		p.kind,
-		true,
-		false,
+		p.exchangeDurable,
+		p.exchangeAutoDelete,
 		false,
 		false,
 		nil,
@@ -215,14 +241,12 @@ func (p *PubProducer) ChannelDone() chan *amqp.Error {
 	return p.closeChan
 }
 
-//###########
-
 type SubConsumer struct {
 	*ConsumerBase
 }
 
-func NewSubConsumer(queueName, exchange string, hub Interface, id int64) ConsumerBuilder {
-	return &SubConsumer{ConsumerBase: &ConsumerBase{
+func newSubConsumer(queueName, exchange string, hub Interface, id int64, opts ...Option) ConsumerBuilder {
+	sc := &SubConsumer{ConsumerBase: &ConsumerBase{
 		id:        id,
 		cm:        hub.ConsumerManager(),
 		queueName: queueName,
@@ -230,22 +254,60 @@ func NewSubConsumer(queueName, exchange string, hub Interface, id int64) Consume
 		hub:       hub,
 		exchange:  exchange,
 	}}
+
+	for _, opt := range opts {
+		opt(sc)
+	}
+
+	return sc
+}
+
+func (d *SubConsumer) WithConsumerAck(needAck bool) {
+	d.autoAck = !needAck
+}
+
+func (d *SubConsumer) WithExchangeDurable(durable bool) {
+	d.exchangeDurable = durable
+}
+
+func (d *SubConsumer) WithExchangeAutoDelete(autoDelete bool) {
+	d.exchangeAutoDelete = autoDelete
+}
+
+func (d *SubConsumer) WithQueueAutoDelete(autoDelete bool) {
+	d.queueAutoDelete = autoDelete
+}
+
+func (d *SubConsumer) WithQueueDurable(durable bool) {
+	d.queueDurable = durable
 }
 
 func (d *SubConsumer) Ack(uniqueId string) error {
+	if d.AutoAck() {
+		return d.hub.Ack(uniqueId)
+	}
+
 	return nil
 }
 
-func (d *SubConsumer) GetId() int64 {
-	return d.id
-}
-
 func (d *SubConsumer) Nack(uniqueId string) error {
+	if d.AutoAck() {
+		return d.hub.Nack(uniqueId)
+	}
+
 	return nil
 }
 
 func (d *SubConsumer) Delivery() chan amqp.Delivery {
 	return d.cm.Delivery(d.queueName, d.kind, d.exchange)
+}
+
+func (d *SubConsumer) AutoAck() bool {
+	return d.autoAck
+}
+
+func (d *SubConsumer) GetId() int64 {
+	return d.id
 }
 
 func (d *SubConsumer) GetConn() *amqp.Connection {
@@ -270,8 +332,24 @@ func (d *SubConsumer) GetExchange() string {
 
 func (d *SubConsumer) Consume(ctx context.Context) (*Message, error) {
 	var (
-		msg = &Message{}
+		ackProducer ProducerInterface
+		err         error
+		msg         = &Message{}
 	)
+
+	recheckCtx, cancelFn := context.WithCancel(context.Background())
+	defer cancelFn()
+
+	go func() {
+		select {
+		case <-time.After(5 * time.Second):
+			d.hub.CheckQueue(d.queueName, d.kind, d.exchange)
+			log.Warnf("队列 %s 触发重平衡", d.queueName)
+		case <-recheckCtx.Done():
+			log.Debug("CheckQueue 未触发 exit")
+		}
+	}()
+
 	select {
 	case <-d.hub.Done():
 		log.Debug("hub done")
@@ -286,6 +364,22 @@ func (d *SubConsumer) Consume(ctx context.Context) (*Message, error) {
 			return nil, ErrorServerUnavailable
 		}
 		json.Unmarshal(data.Body, &msg)
+		msg.RunAfter = nextRunTime(msg, d.hub.Config())
+
+		if d.AutoAck() {
+			if ackProducer, err = d.hub.GetConfirmProducer(); err != nil {
+				log.Debug(err)
+				data.Nack(false, true)
+				return nil, err
+			}
+
+			if err := ackProducer.Publish(*msg); err != nil {
+				log.Debug(err)
+				data.Nack(false, true)
+				return nil, err
+			}
+		}
+
 		if err := data.Ack(false); err != nil {
 			log.Debug(err)
 			return nil, err
@@ -295,15 +389,53 @@ func (d *SubConsumer) Consume(ctx context.Context) (*Message, error) {
 	}
 }
 
-func (d *SubConsumer) PrepareDelivery() error {
+func (d *SubConsumer) PrepareConn() error {
+	defer func(t time.Time) { log.Debugf("SubConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
+
 	var (
-		delivery <-chan amqp.Delivery
-		err      error
+		conn *amqp.Connection
+		err  error
 	)
-	if delivery, err = d.channel.Consume(d.GetQueueName(), "", false, false, false, false, nil); err != nil {
+
+	if conn, err = d.hub.GetAmqpConn(); err != nil {
 		return err
 	}
-	d.delivery = delivery
+
+	d.conn = conn
+
+	return nil
+}
+
+func (d *SubConsumer) PrepareExchange() error {
+	defer func(t time.Time) { log.Debugf("SubConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
+
+	var (
+		err error
+	)
+	if err = d.channel.ExchangeDeclare(
+		d.exchange,
+		d.kind,
+		d.exchangeDurable,
+		d.exchangeAutoDelete,
+		false,
+		false,
+		nil,
+	); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *SubConsumer) PrepareChannel() error {
+	defer func(t time.Time) { log.Debugf("SubConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
+
+	var (
+		err error
+	)
+
+	if d.channel, err = d.conn.Channel(); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -324,57 +456,6 @@ func (d *SubConsumer) PrepareQos() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareConn() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
-
-	var (
-		conn *amqp.Connection
-		err  error
-	)
-
-	if conn, err = d.hub.GetAmqpConn(); err != nil {
-		return err
-	}
-
-	d.conn = conn
-
-	return nil
-}
-
-func (d *SubConsumer) PrepareChannel() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
-
-	var (
-		err error
-	)
-
-	if d.channel, err = d.conn.Channel(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (d *SubConsumer) PrepareExchange() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
-
-	var (
-		err error
-	)
-	if err = d.channel.ExchangeDeclare(
-		d.exchange,
-		d.kind,
-		true,
-		false,
-		false,
-		false,
-		nil,
-	); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (d *SubConsumer) PrepareQueueDeclare() error {
 	defer func(t time.Time) { log.Debugf("SubConsumer prepareQueueDeclare %v.", time.Since(t)) }(time.Now())
 
@@ -384,8 +465,8 @@ func (d *SubConsumer) PrepareQueueDeclare() error {
 	)
 	if queue, err = d.channel.QueueDeclare(
 		d.queueName,
-		false,
-		true,
+		d.queueDurable,
+		d.queueAutoDelete,
 		false,
 		false,
 		nil,
@@ -404,6 +485,19 @@ func (d *SubConsumer) PrepareQueueBind() error {
 	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), d.exchange, false, nil); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (d *SubConsumer) PrepareDelivery() error {
+	var (
+		delivery <-chan amqp.Delivery
+		err      error
+	)
+	if delivery, err = d.channel.Consume(d.GetQueueName(), "", d.autoAck, false, false, false, nil); err != nil {
+		return err
+	}
+	d.delivery = delivery
+
 	return nil
 }
 

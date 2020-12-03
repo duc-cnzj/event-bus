@@ -26,6 +26,12 @@ type ProducerBase struct {
 	channel   *amqp.Channel
 	exchange  string
 
+	queueAutoDelete bool
+	queueDurable    bool
+
+	exchangeDurable    bool
+	exchangeAutoDelete bool
+
 	kind string
 	hub  Interface
 

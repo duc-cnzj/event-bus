@@ -32,15 +32,25 @@ func (r *Rebalancer) CheckQueue(queueName, kind, exchange string) {
 	var (
 		producer ProducerInterface
 		err      error
+		hostname string
 	)
+	// 无需持久化
 	if producer, err = r.hub.pm.GetProducer("", amqp.ExchangeFanout, RecheckExchange); err != nil {
 		log.Error(err)
 		return
 	}
 
-	hostname, _ := os.Hostname()
-	marshal, _ := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange})
-	producer.Publish(Message{Data: string(marshal)})
+	if hostname, err = os.Hostname(); err != nil {
+		log.Error(err)
+		return
+	}
+	if marshal, err := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange}); err != nil {
+		log.Error(err)
+	} else {
+		if err = producer.Publish(Message{Data: string(marshal)}); err != nil {
+			log.Error(err)
+		}
+	}
 }
 
 func (r *Rebalancer) ListenQueue() {
@@ -48,9 +58,15 @@ func (r *Rebalancer) ListenQueue() {
 	var (
 		consumer ConsumerInterface
 		err      error
+		hostname string
 	)
-	hostname, _ := os.Hostname()
-	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, RecheckExchange); err != nil {
+
+	if hostname, err = os.Hostname(); err != nil {
+		log.Error(err)
+		return
+	}
+
+	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, RecheckExchange, WithQueueAutoDelete(true)); err != nil {
 		log.Error(err)
 		return
 	}
