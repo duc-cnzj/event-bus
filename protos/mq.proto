@@ -59,6 +59,7 @@ message DelayTopicPublishRequest {
 
 message TopicSubscribeRequest {
   string topic = 1;
+  string queueName = 2;
 }
 
 service MqTopic {

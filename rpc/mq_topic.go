@@ -59,8 +59,8 @@ func (m *MQTopic) DelayPublish(ctx context.Context, req *mq.DelayTopicPublishReq
 }
 
 // Subscribe 订阅消息
-func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.SubscribeResponse, error) {
-	log.Debug("Subscribe", sub.Queue)
+func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.TopicSubscribeRequest) (*mq.SubscribeResponse, error) {
+	log.Debug("Subscribe", sub.Topic)
 	var (
 		consumer hub.ConsumerInterface
 		err      error
@@ -69,7 +69,7 @@ func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	if consumer, err = m.newConsumer(sub.Queue); err != nil {
+	if consumer, err = m.newConsumer(sub.QueueName, sub.Topic); err != nil {
 		return nil, err
 	}
 
@@ -114,6 +114,6 @@ func (m *MQTopic) newProducer(exchange string) (hub.ProducerInterface, error) {
 	return m.Hub.ProducerManager().GetProducer("", amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
 }
 
-func (m *MQTopic) newConsumer(exchange string) (hub.ConsumerInterface, error) {
-	return m.Hub.ConsumerManager().GetConsumer("", amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
+func (m *MQTopic) newConsumer(queueName, exchange string) (hub.ConsumerInterface, error) {
+	return m.Hub.ConsumerManager().GetConsumer(queueName, amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
 }

@@ -101,6 +101,7 @@ func runRpc(h hub.Interface) {
 
 	server := grpc.NewServer(grpc.UnaryInterceptor(recovery), grpc.StreamInterceptor(streamRecovery))
 	mq.RegisterMqServer(server, &rpc.MQ{Hub: h})
+	mq.RegisterMqTopicServer(server, &rpc.MQTopic{Hub: h})
 
 	if h.Config().RpcPort == "" {
 		log.Fatal("RpcPort required")
