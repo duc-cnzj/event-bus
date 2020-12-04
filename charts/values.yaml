@@ -112,26 +112,26 @@ conf:
   # 默认 10 个就行了，根据数据库处理能力定, BackgroundConsumerEnabled 为 false 不执行
   BackConsumerGoroutineNum: 10
 
-  AmqpUrl: amqp://guest:guest@192.168.199.190:5672/
+  AmqpUrl: amqp://guest:guest@10.88.57.245:5672/
   PrefetchCount: 2000
   HttpPort: 7878
   RpcPort: 9091
 
   # redis
-  RedisAddr: 192.168.199.190:6379
+  RedisAddr: 10.88.57.245:6379
   RedisDB: 0
   RedisUsername:
   RedisPassword:
 
   # DATABASE
-  DB_HOST: 192.168.199.190
+  DB_HOST: 10.88.57.245
   DB_PORT: 3306
   DB_DATABASE: mq_v2
   DB_USERNAME: root
   DB_PASSWORD:
 
   # 每个队列的消费者数量
-  EachQueueConsumerNum: 1
+  EachQueueConsumerNum: 5
 
   # 每个队列的生产者数量
   EachQueueProducerNum: 1

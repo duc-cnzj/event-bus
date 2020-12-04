@@ -42,7 +42,11 @@ var rpcSubCmd = &cobra.Command{
 		if testHost != "" {
 			host = testHost
 		}
-		dial, e := grpc.Dial(host+":"+app.Config().RpcPort, grpc.WithInsecure())
+		pt := app.Config().RpcPort
+		if port != "" {
+			pt = port
+		}
+		dial, e := grpc.Dial(host+":"+pt, grpc.WithInsecure())
 		if e != nil {
 			log.Error(e)
 			return
