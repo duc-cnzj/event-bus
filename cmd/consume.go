@@ -42,7 +42,7 @@ var consumeCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		wg.Add(testConsumerNum)
 		for i := 0; i < testConsumerNum; i++ {
-			consumer, _ := h.ConsumerManager().GetDurableNotAutoDeleteConsumer(testQueueName, kind, topic)
+			consumer, _ := h.NewDurableNotAutoDeleteDirectConsumer(testQueueName, true)
 			go func() {
 				defer wg.Done()
 				for {
@@ -59,7 +59,7 @@ var consumeCmd = &cobra.Command{
 							log.Error(err)
 							return
 						} else {
-							if err := consumer.Ack(consume.UniqueId); err != nil {
+							if err := consumer.Ack(consume.GetUniqueId()); err != nil {
 								atomic.AddInt64(&total, -1)
 								log.Error(err)
 							}

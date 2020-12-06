@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
 	"mq/hub"
 	mq "mq/protos"
 )
@@ -31,7 +30,7 @@ func (m *MQTopic) Publish(ctx context.Context, pub *mq.TopicPublishRequest) (*em
 		return nil, err
 	}
 
-	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
+	if err := producer.Publish(hub.NewMessage(pub.Data)); err != nil {
 		return nil, err
 	}
 
@@ -39,19 +38,18 @@ func (m *MQTopic) Publish(ctx context.Context, pub *mq.TopicPublishRequest) (*em
 }
 
 // DelayPublish 延迟推送
-// todo
 func (m *MQTopic) DelayPublish(ctx context.Context, req *mq.DelayTopicPublishRequest) (*empty.Empty, error) {
 	log.Debug("delay publish", req.Topic)
 	var (
-		err error
+		err      error
+		producer hub.ProducerInterface
 	)
 
-	if err = m.Hub.DelayPublish(
-		"",
-		req.Topic,
-		hub.Message{Data: req.Data},
-		uint(req.DelaySeconds),
-	); err != nil {
+	if producer, err = m.newProducer(req.Topic); err != nil {
+		return nil, err
+	}
+
+	if err = producer.DelayPublish(hub.NewMessage(req.Data).Delay(uint(req.DelaySeconds))); err != nil {
 		return nil, err
 	}
 
@@ -64,7 +62,7 @@ func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.TopicSubscribeRequest) 
 	var (
 		consumer hub.ConsumerInterface
 		err      error
-		msg      *hub.Message
+		msg      hub.MessageInterface
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -78,9 +76,9 @@ func (m *MQTopic) Subscribe(ctx context.Context, sub *mq.TopicSubscribeRequest) 
 	}
 
 	return &mq.SubscribeResponse{
-		Id:    msg.UniqueId,
-		Data:  msg.Data,
-		Queue: msg.QueueName,
+		Id:    msg.GetUniqueId(),
+		Data:  msg.GetData(),
+		Queue: msg.GetQueueName(),
 	}, nil
 }
 
@@ -111,9 +109,9 @@ func (m *MQTopic) mustEmbedUnimplementedMQServer() {
 }
 
 func (m *MQTopic) newProducer(exchange string) (hub.ProducerInterface, error) {
-	return m.Hub.ProducerManager().GetProducer("", amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
+	return m.Hub.NewDurableNotAutoDeletePubsubProducer(exchange)
 }
 
 func (m *MQTopic) newConsumer(queueName, exchange string) (hub.ConsumerInterface, error) {
-	return m.Hub.ConsumerManager().GetConsumer(queueName, amqp.ExchangeFanout, exchange, hub.WithQueueDurable(true), hub.WithExchangeDurable(true))
+	return m.Hub.NewDurableNotAutoDeletePubsubConsumer(queueName, exchange)
 }

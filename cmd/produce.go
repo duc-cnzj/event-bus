@@ -61,9 +61,7 @@ var produceCmd = &cobra.Command{
 							return
 						}
 						atomic.AddInt64(&total, 1)
-						if err = producer.Publish(hub.Message{
-							Data: fmt.Sprintf("data to test queue by %d\n", producer.GetId()),
-						}); err != nil {
+						if err = producer.Publish(hub.NewMessage(fmt.Sprintf("data to test queue by %d\n", producer.GetId()))); err != nil {
 							log.Error(err)
 							atomic.AddInt64(&total, -1)
 						}

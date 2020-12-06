@@ -14,7 +14,7 @@ import (
 type DBLoader struct {
 }
 
-func (D *DBLoader) Boot(app *App) {
+func (D *DBLoader) Boot(app *Application) {
 	var (
 		err error
 		db  *gorm.DB

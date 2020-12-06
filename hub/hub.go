@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	json "github.com/json-iterator/go"
-	"github.com/rs/xid"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"gorm.io/gorm"
@@ -45,13 +44,21 @@ type Interface interface {
 	Ack(string) error
 	Nack(string) error
 
-	DelayPublish(queueName, kind string, msg Message, delaySeconds uint) error
+	DelayPublishQueue(models.DelayQueue) error
 
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
 
-	NewDurableNotAutoDeleteProducer(queueName, kind string, opts ...Option) (ProducerInterface, error)
-	NewDurableNotAutoDeleteConsumer(queueName, kind string, opts ...Option) (ConsumerInterface, error)
+	NewProducer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error)
+	NewConsumer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error)
+
+	//For Direct
+	NewDurableNotAutoDeleteDirectProducer(queueName string) (ProducerInterface, error)
+	NewDurableNotAutoDeleteDirectConsumer(queueName string, reBalance bool) (ConsumerInterface, error)
+
+	//For Pubsub
+	NewDurableNotAutoDeletePubsubProducer(queueName string) (ProducerInterface, error)
+	NewDurableNotAutoDeletePubsubConsumer(queueName, exchange string) (ConsumerInterface, error)
 
 	RemoveProducer(p ProducerInterface)
 	RemoveConsumer(c ConsumerInterface)
@@ -109,21 +116,88 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	return h
 }
 
+func (h *Hub) NewDurableNotAutoDeletePubsubProducer(exchange string) (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	if h.IsClosed() {
+		log.Debug("hub.NewDurableNotAutoDeleteDirectProducer but hub closed.")
+		return nil, ErrorServerUnavailable
+	}
+
+	if producer, err = h.NewProducer("", amqp.ExchangeFanout, exchange, true, false, true, false); err != nil {
+		log.Debugf("hub.NewDurableNotAutoDeleteDirectProducer GetDurableNotAutoDeleteProducer err %v.", err)
+		return nil, err
+	}
+
+	return producer, nil
+}
+
+func (h *Hub) NewDurableNotAutoDeletePubsubConsumer(queueName, exchange string) (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if h.IsClosed() {
+		return nil, ErrorServerUnavailable
+	}
+
+	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeFanout, exchange, true, false, true, false, true, false); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func (h *Hub) NewProducer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	opts := []Option{
+		WithExchangeDurable(true),
+		WithExchangeDurable(durableExchange),
+		WithExchangeAutoDelete(exchangeAutoDelete),
+		WithQueueDurable(durableQueue),
+		WithQueueAutoDelete(queueAutoDelete),
+	}
+
+	if h.IsClosed() {
+		return nil, ErrorServerUnavailable
+	}
+
+	if producer, err = h.ProducerManager().GetProducer(queueName, kind, exchange, opts...); err != nil {
+		return nil, err
+	}
+
+	return producer, nil
+}
+
 func (h *Hub) ReBalance(queueName, kind, exchange string) {
+	log.Debugf("重平衡心跳检查 queue %s kind %s exchange %s", queueName, kind, exchange)
 	h.rb.ReBalance(queueName, kind, exchange)
 }
 
 func (h *Hub) Ack(uniqueId string) error {
 	var (
-		err      error
-		producer ProducerInterface
+		err        error
+		producer   ProducerInterface
+		ackJsonMsg []byte
 	)
 
 	if producer, err = h.GetAckQueueProducer(); err != nil {
 		return err
 	}
 
-	if err = producer.Publish(Message{UniqueId: uniqueId, AckedAt: time.Now()}); err != nil {
+	if ackJsonMsg, err = json.Marshal(NewAckMessage(uniqueId, time.Now())); err != nil {
+		return err
+	}
+
+	if err = producer.Publish(NewMessage(string(ackJsonMsg))); err != nil {
 		return err
 	}
 
@@ -136,8 +210,11 @@ func (h *Hub) Nack(uniqueId string) error {
 		queue models.Queue
 	)
 	now := time.Now()
+	runAfter := now.Add(time.Duration(h.Config().NackdJobNextRunDelaySeconds) * time.Second)
+
 	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id = ?", uniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
+
 			if err = h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after", "status"}),
@@ -145,7 +222,7 @@ func (h *Hub) Nack(uniqueId string) error {
 				UniqueId: uniqueId,
 				NackedAt: &now,
 				Status:   models.StatusNacked,
-				RunAfter: &now,
+				RunAfter: &runAfter,
 			}).Error; err != nil {
 				log.Error(err)
 				return err
@@ -163,7 +240,7 @@ func (h *Hub) Nack(uniqueId string) error {
 		return ErrorAlreadyAcked
 	}
 
-	if err = h.GetDBConn().Model(&models.Queue{}).Where("id = ?", queue.ID).Updates(&models.Queue{NackedAt: &now, RunAfter: &now, Status: models.StatusNacked}).Error; err != nil {
+	if err = h.GetDBConn().Model(&models.Queue{}).Where("id = ?", queue.ID).Updates(&models.Queue{NackedAt: &now, RunAfter: &runAfter, Status: models.StatusNacked}).Error; err != nil {
 		log.Error(err)
 		return err
 	}
@@ -171,18 +248,25 @@ func (h *Hub) Nack(uniqueId string) error {
 	return nil
 }
 
-func (h *Hub) ConsumeDelayPublishQueue() {
-	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
-		go h.consumeDelayPublishQueue()
-	}
-	log.Debug("back consume confirm queue started.")
-}
-
+//处理 confirm 队列
 func (h *Hub) ConsumeConfirmQueue() {
 	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeConfirmQueue()
 	}
 	log.Debug("back consume confirm queue started.")
+}
+
+func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if consumer, err = h.NewDurableNotAutoDeleteDirectConsumer(ConfirmQueueName, false); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
 }
 
 func (h *Hub) consumeConfirmQueue() {
@@ -215,11 +299,109 @@ func (h *Hub) consumeConfirmQueue() {
 				return
 			}
 
-			handle(h.GetDBConn(), delivery, false)
+			handleConfirm(h.GetDBConn(), delivery)
 		}
 	}
 }
 
+func handleConfirm(db *gorm.DB, delivery amqp.Delivery) {
+	var (
+		msg         = &Message{}
+		err         error
+		now         = time.Now()
+		confirmData ConfirmMessage
+	)
+
+	defer func() {
+		if err != nil {
+			log.Error("出现了不应该出现的异常", err)
+			delivery.Nack(false, true)
+		} else {
+			delivery.Ack(false)
+		}
+	}()
+
+	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+		log.Error(err)
+		return
+	}
+
+	if err = json.Unmarshal([]byte(msg.GetData()), &confirmData); err != nil {
+		log.Error(err)
+		return
+	}
+
+	var queue models.Queue
+	json.Unmarshal([]byte(msg.GetData()), &msg)
+
+	if err = db.Unscoped().Model(&models.Queue{}).Where("unique_id", confirmData.UniqueId).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if err = db.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "unique_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"exchange", "kind", "run_after", "retry_times", "confirmed_at", "Data", "queue_name", "Ref", "is_confirmed"}),
+			}).Create(&models.Queue{
+				Exchange:    confirmData.Exchange,
+				Kind:        confirmData.Kind,
+				UniqueId:    confirmData.UniqueId,
+				RetryTimes:  confirmData.RetryTimes,
+				ConfirmedAt: &now,
+				Data:        confirmData.Data,
+				QueueName:   confirmData.QueueName,
+				RunAfter:    confirmData.RunAfter,
+				Ref:         confirmData.Ref,
+				IsConfirmed: true,
+			}).Error; err != nil {
+				log.Error(err)
+			}
+		} else {
+			log.Error(err)
+		}
+		return
+	}
+
+	if queue.Deleted() {
+		log.Warnf("queue %s already deleted queueName %s kind %s", queue.UniqueId, queue.QueueName, queue.Kind)
+		return
+	}
+
+	if queue.Nackd() {
+		if !queue.Confirmed() {
+			if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+				Kind:        confirmData.Kind,
+				Exchange:    confirmData.Exchange,
+				RetryTimes:  confirmData.RetryTimes,
+				ConfirmedAt: &now,
+				Data:        confirmData.Data,
+				QueueName:   confirmData.QueueName,
+				RunAfter:    confirmData.RunAfter,
+				Ref:         confirmData.Ref,
+				IsConfirmed: true,
+			}).Error; err != nil {
+				log.Error(err)
+			}
+		}
+		log.Debug("queue status ", queue.NackedAt)
+		return
+	}
+
+	if !queue.Confirmed() {
+		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
+			Exchange:    confirmData.Exchange,
+			Kind:        confirmData.Kind,
+			RetryTimes:  confirmData.RetryTimes,
+			ConfirmedAt: &now,
+			Data:        confirmData.Data,
+			QueueName:   confirmData.QueueName,
+			RunAfter:    confirmData.RunAfter,
+			Ref:         confirmData.Ref,
+			IsConfirmed: true,
+		}).Error; err != nil {
+			log.Error(err)
+		}
+	}
+}
+
+//处理 ack 队列
 func (h *Hub) ConsumeAckQueue() {
 	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
 		go h.consumeAckQueue()
@@ -258,35 +440,147 @@ func (h *Hub) consumeAckQueue() {
 				return
 			}
 
-			handle(h.GetDBConn(), delivery, true)
+			handleAck(h.GetDBConn(), delivery)
 		}
 	}
 }
 
+func handleAck(db *gorm.DB, delivery amqp.Delivery) {
+	var (
+		msg   = &Message{}
+		err   error
+		queue models.Queue
+	)
+
+	defer func() {
+		if err != nil {
+			log.Error("出现了不应该出现的异常", err)
+			delivery.Nack(false, true)
+		} else {
+			delivery.Ack(false)
+		}
+	}()
+
+	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+		log.Error(err)
+		return
+	}
+
+	var ackData AckMessage
+	err = json.Unmarshal([]byte(msg.GetData()), &ackData)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+
+	if err = db.Unscoped().Model(&models.Queue{}).Where("unique_id", ackData.UniqueId).First(&queue).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if err = db.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "unique_id"}},
+				DoUpdates: clause.AssignmentColumns([]string{"acked_at", "status"}),
+			}).Create(&models.Queue{
+				UniqueId: ackData.UniqueId,
+				AckedAt:  &ackData.AckedAt,
+				Status:   models.StatusAcked,
+			}).Error; err != nil {
+				log.Error(err)
+			}
+		} else {
+			log.Error(err)
+		}
+		return
+	}
+
+	if queue.Deleted() {
+		log.Warnf("queue %s already deleted queueName %s kind %s", queue.UniqueId, queue.QueueName, queue.Kind)
+		return
+	}
+
+	if queue.Nackd() {
+		log.Debug("queue status ", queue.NackedAt)
+		return
+	}
+
+	if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &ackData.AckedAt, Status: models.StatusAcked}).Error; err != nil {
+		log.Error(err)
+	}
+}
+
+// 处理延迟推送队列
 func (h *Hub) GetDelayPublishConsumer() (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if consumer, err = h.NewDurableNotAutoDeleteDirectConsumer(DelayQueueName, true); err != nil {
 		return nil, err
 	}
 
 	return consumer, nil
 }
 
-func (h *Hub) GetConfirmConsumer() (ConsumerInterface, error) {
+func (h *Hub) ConsumeDelayPublishQueue() {
+	for i := 0; i < h.Config().BackConsumerGoroutineNum; i++ {
+		go h.consumeDelayPublishQueue()
+	}
+	log.Debug("back consume confirm queue started.")
+}
+
+func (h *Hub) consumeDelayPublishQueue() {
 	var (
-		consumer ConsumerInterface
 		err      error
+		consumer ConsumerInterface
 	)
 
-	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
-		return nil, err
-	}
+	defer func() {
+		log.Debug("ConsumeDelayPublishQueue EXIT")
+	}()
 
-	return consumer, nil
+	if consumer, err = h.GetDelayPublishConsumer(); err != nil {
+		log.Error("err ConsumeDelayPublishQueue()", err)
+		return
+	}
+	defer consumer.Close()
+
+	for {
+		select {
+		case <-consumer.ChannelDone():
+			return
+		case <-h.Done():
+			log.Debug("hub done ConsumeConfirmQueue exit.")
+			return
+		case delivery, ok := <-consumer.Delivery():
+			if !ok {
+				log.Debug("not ok")
+				delivery.Nack(false, true)
+				return
+			}
+
+			var (
+				msg = &Message{}
+				err error
+				dp  models.DelayQueue
+			)
+			if err = json.Unmarshal(delivery.Body, &msg); err != nil {
+				log.Error(err)
+				delivery.Nack(false, true)
+				return
+			}
+
+			if err = json.Unmarshal([]byte(msg.GetData()), &dp); err != nil {
+				log.Error(err)
+				delivery.Nack(false, true)
+				return
+			}
+
+			if err = h.GetDBConn().Create(&dp).Error; err != nil {
+				delivery.Nack(false, true)
+				return
+			}
+			delivery.Ack(false)
+		}
+	}
 }
 
 func (h *Hub) Run() {
@@ -301,7 +595,7 @@ func (h *Hub) GetDelayPublishProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(DelayQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.NewDurableNotAutoDeleteDirectProducer(DelayQueueName); err != nil {
 		return nil, err
 	}
 
@@ -314,7 +608,7 @@ func (h *Hub) GetConfirmProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(ConfirmQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.NewDurableNotAutoDeleteDirectProducer(ConfirmQueueName); err != nil {
 		return nil, err
 	}
 
@@ -327,7 +621,7 @@ func (h *Hub) GetAckQueueConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if consumer, err = h.NewDurableNotAutoDeleteDirectConsumer(AckQueueName, false); err != nil {
 		return nil, err
 	}
 
@@ -340,7 +634,7 @@ func (h *Hub) GetAckQueueProducer() (ProducerInterface, error) {
 		err      error
 	)
 
-	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(AckQueueName, amqp.ExchangeDirect, DefaultExchange); err != nil {
+	if producer, err = h.NewDurableNotAutoDeleteDirectProducer(AckQueueName); err != nil {
 		return nil, err
 	}
 
@@ -359,26 +653,52 @@ func (h *Hub) ConsumerManager() ConsumerManagerInterface {
 	return h.cm
 }
 
-func (h *Hub) NewDurableNotAutoDeleteProducer(queueName, kind string, opts ...Option) (ProducerInterface, error) {
+func (h *Hub) NewDurableNotAutoDeleteDirectProducer(queueName string) (ProducerInterface, error) {
 	var (
 		producer ProducerInterface
 		err      error
 	)
 
 	if h.IsClosed() {
-		log.Debug("hub.NewDurableNotAutoDeleteProducer but hub closed.")
+		log.Debug("hub.NewDurableNotAutoDeleteDirectProducer but hub closed.")
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.ProducerManager().GetDurableNotAutoDeleteProducer(queueName, kind, DefaultExchange, opts...); err != nil {
-		log.Debugf("hub.NewDurableNotAutoDeleteProducer GetDurableNotAutoDeleteProducer err %v.", err)
+	if producer, err = h.NewProducer(queueName, amqp.ExchangeDirect, DefaultExchange, true, false, true, false); err != nil {
+		log.Debugf("hub.NewDurableNotAutoDeleteDirectProducer GetDurableNotAutoDeleteProducer err %v.", err)
 		return nil, err
 	}
 
 	return producer, nil
 }
 
-func (h *Hub) NewDurableNotAutoDeleteConsumer(queueName, kind string, opts ...Option) (ConsumerInterface, error) {
+func (h *Hub) NewConsumer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	opts := []Option{
+		WithExchangeDurable(durableExchange),
+		WithQueueDurable(durableQueue),
+		WithQueueAutoDelete(queueAutoDelete),
+		WithExchangeAutoDelete(exchangeAutoDelete),
+		WithConsumerReBalance(reBalance),
+		WithConsumerAck(!autoAck),
+	}
+
+	if h.IsClosed() {
+		return nil, ErrorServerUnavailable
+	}
+
+	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind, exchange, opts...); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func (h *Hub) NewDurableNotAutoDeleteDirectConsumer(queueName string, reBalance bool) (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
 		err      error
@@ -388,7 +708,7 @@ func (h *Hub) NewDurableNotAutoDeleteConsumer(queueName, kind string, opts ...Op
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.ConsumerManager().GetDurableNotAutoDeleteConsumer(queueName, kind, DefaultExchange, opts...); err != nil {
+	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeDirect, DefaultExchange, true, false, true, false, reBalance, false); err != nil {
 		return nil, err
 	}
 
@@ -468,199 +788,25 @@ func (h *Hub) Close() {
 
 	log.Info("hub closed.")
 }
-
 func (h *Hub) Config() *config.Config {
 	return h.cfg
 }
 
-func (h *Hub) DelayPublish(queueName, kind string, msg Message, delaySeconds uint) error {
+func (h *Hub) DelayPublishQueue(dq models.DelayQueue) error {
 	var (
 		producer ProducerInterface
 		err      error
 	)
-	msg.QueueName = queueName
-	msg.Kind = kind
-	msg.DelaySeconds = delaySeconds
-	runAfter := time.Now().Add(time.Duration(delaySeconds) * time.Second)
-	msg.RunAfter = &runAfter
-
-	if msg.UniqueId == "" {
-		msg.UniqueId = xid.New().String()
-	}
-
 	if producer, err = h.GetDelayPublishProducer(); err != nil {
 		return err
 	}
+	data, _ := json.Marshal(&dq)
 
-	if err = producer.Publish(msg); err != nil {
+	if err = producer.Publish(NewMessage(string(data))); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func (h *Hub) consumeDelayPublishQueue() {
-	var (
-		err      error
-		consumer ConsumerInterface
-	)
-
-	defer func() {
-		log.Debug("ConsumeDelayPublishQueue EXIT")
-	}()
-
-	if consumer, err = h.GetDelayPublishConsumer(); err != nil {
-		log.Error("err ConsumeDelayPublishQueue()", err)
-		return
-	}
-	defer consumer.Close()
-
-	for {
-		select {
-		case <-consumer.ChannelDone():
-			return
-		case <-h.Done():
-			log.Debug("hub done ConsumeConfirmQueue exit.")
-			return
-		case delivery, ok := <-consumer.Delivery():
-			if !ok {
-				log.Debug("not ok")
-				delivery.Nack(false, true)
-				return
-			}
-
-			var (
-				msg = &Message{}
-				err error
-			)
-			if err = json.Unmarshal(delivery.Body, &msg); err != nil {
-				log.Error(err)
-				delivery.Nack(false, true)
-				return
-			}
-			runAfter := time.Now().Add(time.Duration(msg.DelaySeconds) * time.Second)
-
-			if err = h.GetDBConn().Create(&models.DelayQueue{
-				Kind:         msg.Kind,
-				RetryTimes:   msg.RetryTimes,
-				UniqueId:     msg.UniqueId,
-				Data:         msg.Data,
-				QueueName:    msg.QueueName,
-				RunAfter:     &runAfter,
-				DelaySeconds: msg.DelaySeconds,
-				Ref:          msg.Ref,
-			}).Error; err != nil {
-				delivery.Nack(false, true)
-				return
-			}
-			delivery.Ack(false)
-		}
-	}
-}
-
-func handle(db *gorm.DB, delivery amqp.Delivery, ackMsg bool) {
-	var (
-		msg = &Message{}
-		err error
-		now = time.Now()
-	)
-
-	defer func() {
-		if err != nil {
-			log.Error("出现了不应该出现的异常", err)
-			delivery.Nack(false, true)
-		} else {
-			delivery.Ack(false)
-		}
-	}()
-
-	if err = json.Unmarshal(delivery.Body, &msg); err != nil {
-		log.Error(err)
-		return
-	}
-
-	var queue = &models.Queue{
-		UniqueId: msg.UniqueId,
-	}
-	if err = db.Unscoped().Model(&models.Queue{}).Where("unique_id", msg.UniqueId).First(&queue).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			if ackMsg {
-				if err = db.Clauses(clause.OnConflict{
-					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"acked_at", "status"}),
-				}).Create(&models.Queue{
-					UniqueId: msg.UniqueId,
-					AckedAt:  &msg.AckedAt,
-					Status:   models.StatusAcked,
-				}).Error; err != nil {
-					log.Error(err)
-				}
-			} else {
-				if err = db.Clauses(clause.OnConflict{
-					Columns:   []clause.Column{{Name: "unique_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"kind", "run_after", "retry_times", "confirmed_at", "data", "queue_name", "ref", "is_confirmed"}),
-				}).Create(&models.Queue{
-					Kind:        msg.Kind,
-					UniqueId:    msg.UniqueId,
-					RetryTimes:  msg.RetryTimes,
-					ConfirmedAt: &now,
-					Data:        msg.Data,
-					QueueName:   msg.QueueName,
-					RunAfter:    msg.RunAfter,
-					Ref:         msg.Ref,
-					IsConfirmed: true,
-				}).Error; err != nil {
-					log.Error(err)
-				}
-			}
-		} else {
-			log.Error(err)
-		}
-		return
-	}
-
-	if queue.Deleted() {
-		log.Warnf("queue %s already deleted ", queue.UniqueId)
-		return
-	}
-
-	if queue.Nackd() {
-		if !queue.Confirmed() {
-			if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
-				Kind:        msg.Kind,
-				RetryTimes:  msg.RetryTimes,
-				ConfirmedAt: &now,
-				Data:        msg.Data,
-				QueueName:   msg.QueueName,
-				RunAfter:    msg.RunAfter,
-				Ref:         msg.Ref,
-				IsConfirmed: true,
-			}).Error; err != nil {
-				log.Error(err)
-			}
-		}
-		log.Debug("queue status ", queue.NackedAt)
-		return
-	}
-
-	if ackMsg && !queue.Acked() {
-		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{AckedAt: &msg.AckedAt, Status: models.StatusAcked}).Error; err != nil {
-			log.Error(err)
-		}
-	} else if !queue.Confirmed() {
-		if err = db.Model(&models.Queue{ID: queue.ID}).Updates(&models.Queue{
-			Kind:        msg.Kind,
-			RetryTimes:  msg.RetryTimes,
-			ConfirmedAt: &now,
-			Data:        msg.Data,
-			QueueName:   msg.QueueName,
-			RunAfter:    msg.RunAfter,
-			Ref:         msg.Ref,
-			IsConfirmed: true,
-		}).Error; err != nil {
-			log.Error(err)
-		}
-	}
 }
 
 func (h *Hub) listenAmqpConnDone() {

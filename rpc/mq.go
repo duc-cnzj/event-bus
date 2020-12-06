@@ -5,7 +5,6 @@ import (
 	"errors"
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
 	"mq/hub"
 	mq "mq/protos"
 )
@@ -31,7 +30,7 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*empty.Empty,
 		return nil, err
 	}
 
-	if err := producer.Publish(hub.Message{Data: pub.Data}); err != nil {
+	if err := producer.Publish(hub.NewMessage(pub.Data)); err != nil {
 		return nil, err
 	}
 
@@ -42,15 +41,15 @@ func (m *MQ) Publish(ctx context.Context, pub *mq.PublishRequest) (*empty.Empty,
 func (m *MQ) DelayPublish(ctx context.Context, req *mq.DelayPublishRequest) (*empty.Empty, error) {
 	log.Debug("delay publish", req.Queue)
 	var (
-		err error
+		err      error
+		producer hub.ProducerInterface
 	)
 
-	if err = m.Hub.DelayPublish(
-		req.Queue,
-		amqp.ExchangeDirect,
-		hub.Message{Data: req.Data},
-		uint(req.DelaySeconds),
-	); err != nil {
+	if producer, err = m.newProducer(req.Queue); err != nil {
+		return nil, err
+	}
+
+	if err = producer.DelayPublish(hub.NewMessage(req.Data).Delay(uint(req.DelaySeconds))); err != nil {
 		return nil, err
 	}
 
@@ -63,7 +62,7 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Subsc
 	var (
 		consumer hub.ConsumerInterface
 		err      error
-		msg      *hub.Message
+		msg      hub.MessageInterface
 	)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -77,9 +76,9 @@ func (m *MQ) Subscribe(ctx context.Context, sub *mq.SubscribeRequest) (*mq.Subsc
 	}
 
 	return &mq.SubscribeResponse{
-		Id:    msg.UniqueId,
-		Data:  msg.Data,
-		Queue: msg.QueueName,
+		Id:    msg.GetUniqueId(),
+		Data:  msg.GetData(),
+		Queue: msg.GetQueueName(),
 	}, nil
 }
 
@@ -110,9 +109,9 @@ func (m *MQ) mustEmbedUnimplementedMQServer() {
 }
 
 func (m *MQ) newProducer(queueName string) (hub.ProducerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeleteProducer(queueName, amqp.ExchangeDirect)
+	return m.Hub.NewDurableNotAutoDeleteDirectProducer(queueName)
 }
 
 func (m *MQ) newConsumer(queueName string) (hub.ConsumerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeleteConsumer(queueName, amqp.ExchangeDirect)
+	return m.Hub.NewDurableNotAutoDeleteDirectConsumer(queueName, true)
 }

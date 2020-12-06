@@ -8,13 +8,7 @@ import (
 	"os"
 )
 
-var app = &bootstrapers.App{
-	Bootstrapers: []bootstrapers.Boot{
-		&bootstrapers.ConfigLoader{},
-		&bootstrapers.DBLoader{},
-		&bootstrapers.RedisLoader{},
-	},
-}
+var app = bootstrapers.App()
 
 var rootCmd = &cobra.Command{
 	Use:   "app",

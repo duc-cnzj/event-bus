@@ -7,6 +7,7 @@ import (
 	"mq/lb"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 type ProducerManagerInterface interface {
@@ -173,9 +174,6 @@ func (pm *ProducerManager) getKey(queueName, kind, exchange string) string {
 }
 
 type ConsumerManagerInterface interface {
-	// GetDurableNotAutoDeleteConsumer 获取 queue、exchange `durable: true` `autoDelete: false` `autoAck: false` 的 consumer
-	GetDurableNotAutoDeleteConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error)
-	// GetConsumer 默认 `durable: false` `autoDelete: false` `autoAck: false`
 	GetConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error)
 	RemoveConsumer(ConsumerInterface)
 	Delivery(key string) chan amqp.Delivery
@@ -204,52 +202,6 @@ func (cm *ConsumerManager) Delivery(key string) chan amqp.Delivery {
 	cm.deliveryMap.Store(key, ch)
 
 	return ch
-}
-
-func (cm *ConsumerManager) GetDurableNotAutoDeleteConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error) {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-
-	var (
-		item *lb.Item
-		err  error
-	)
-
-	opts = append([]Option{WithQueueDurable(true), WithExchangeDurable(true)}, opts...)
-
-	key := cm.getKey(queueName, kind, exchange)
-
-	if load, ok := cm.consumers.Load(key); ok {
-		if item, err = load.(lb.LoadBalancerInterface).Get(); err != nil {
-			return nil, err
-		} else {
-			return item.Instance().(ConsumerInterface), nil
-		}
-	}
-
-	loadBalancer := lb.NewLoadBalancer(cm.hub.Config().EachQueueConsumerNum, func(id int64) (interface{}, error) {
-		select {
-		case <-cm.hub.Done():
-			return nil, ErrorHubDone
-		default:
-			switch kind {
-			case amqp.ExchangeDirect:
-				return newDirectConsumer(queueName, exchange, cm.hub, id, opts...).Build()
-			case amqp.ExchangeFanout:
-				return newSubConsumer(queueName, exchange, cm.hub, id, opts...).Build()
-			default:
-				return nil, errors.New("unsupport kind: " + kind)
-			}
-		}
-	})
-
-	cm.consumers.Store(key, loadBalancer)
-
-	if item, err = loadBalancer.Get(); err != nil {
-		return nil, err
-	}
-
-	return item.Instance().(ConsumerInterface), nil
 }
 
 func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error) {
@@ -293,7 +245,24 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ..
 		return nil, err
 	}
 
-	return item.Instance().(ConsumerInterface), nil
+	consumer := item.Instance().(ConsumerInterface)
+
+	if !consumer.DontNeedReBalance() {
+		go func() {
+			for {
+				select {
+				case <-time.After(time.Second):
+					cm.hub.ReBalance(consumer.GetQueueName(), consumer.GetKind(), consumer.GetExchange())
+				case <-cm.hub.Done():
+					return
+				case <-consumer.ChannelDone():
+					return
+				}
+			}
+		}()
+	}
+
+	return consumer, nil
 }
 
 func (cm *ConsumerManager) RemoveConsumer(c ConsumerInterface) {

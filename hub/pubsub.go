@@ -5,6 +5,7 @@ import (
 	"errors"
 	json "github.com/json-iterator/go"
 	"github.com/rs/xid"
+	"mq/models"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -20,7 +21,24 @@ type PubProducer struct {
 	*ProducerBase
 }
 
+func (p *PubProducer) DelayPublish(message MessageInterface) error {
+	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
+
+	return p.hub.DelayPublishQueue(models.DelayQueue{
+		UniqueId:     xid.New().String(),
+		Data:         message.GetData(),
+		QueueName:    p.queueName,
+		RunAfter:     &runAfter,
+		DelaySeconds: uint(message.GetDelaySeconds()),
+		Kind:         p.kind,
+		Exchange:     p.exchange,
+	})
+}
 func (p *PubProducer) WithConsumerAck(needAck bool) {
+	panic("implement me")
+}
+
+func (p *PubProducer) WithConsumerReBalance(needReBalance bool) {
 	panic("implement me")
 }
 
@@ -116,7 +134,7 @@ func (p *PubProducer) PrepareQueueBind() error {
 }
 
 func (p *PubProducer) Build() (ProducerInterface, error) {
-	log.Infof("start build producer %s.", p.queueName)
+	log.Infof("start build producer queueName %s kind %s exchange %s.", p.queueName, p.kind, p.exchange)
 
 	var (
 		err error
@@ -177,22 +195,20 @@ func (p *PubProducer) GetExchange() string {
 	return p.exchange
 }
 
-func (p *PubProducer) DelayPublish(s string, message Message, u uint) error {
-	panic("implement me")
-}
-
-func (p *PubProducer) Publish(message Message) error {
+func (p *PubProducer) Publish(message MessageInterface) error {
 	var (
 		body []byte
 		err  error
 	)
-	message.Kind = amqp.ExchangeFanout
-	if message.QueueName == "" {
-		message.QueueName = p.GetQueueName()
+
+	if message.IsDelay() {
+		return p.DelayPublish(message)
 	}
-	if message.UniqueId == "" {
-		message.UniqueId = xid.New().String()
-	}
+
+	message.SetUniqueIdIfNotExist(xid.New().String())
+	message.SetExchange(p.exchange)
+	message.SetQueueName(p.queueName)
+	message.SetKind(p.kind)
 
 	if body, err = json.Marshal(&message); err != nil {
 		return err
@@ -268,6 +284,10 @@ func (d *SubConsumer) WithConsumerAck(needAck bool) {
 	d.autoAck = !needAck
 }
 
+func (d *SubConsumer) WithConsumerReBalance(needReBalance bool) {
+	d.dontNeedReBalance = !needReBalance
+}
+
 func (d *SubConsumer) WithExchangeDurable(durable bool) {
 	d.exchangeDurable = durable
 }
@@ -332,11 +352,10 @@ func (d *SubConsumer) GetExchange() string {
 	return d.exchange
 }
 
-func (d *SubConsumer) Consume(ctx context.Context) (*Message, error) {
+func (d *SubConsumer) Consume(ctx context.Context) (MessageInterface, error) {
 	var (
-		ackProducer ProducerInterface
-		err         error
-		msg         = &Message{}
+		err error
+		msg = &Message{}
 	)
 
 	select {
@@ -353,18 +372,11 @@ func (d *SubConsumer) Consume(ctx context.Context) (*Message, error) {
 			return nil, ErrorServerUnavailable
 		}
 		json.Unmarshal(data.Body, &msg)
-		msg.RunAfter = nextRunTime(msg, d.hub.Config())
+		msg.SetRunAfter(nextRunTime(msg, d.hub.Config().NackdJobNextRunDelaySeconds))
 
 		if !d.AutoAck() {
-			if ackProducer, err = d.hub.(BackgroundJobWorker).GetConfirmProducer(); err != nil {
-				log.Debug(err)
-				data.Nack(false, true)
-				return nil, err
-			}
-
-			if err := ackProducer.Publish(*msg); err != nil {
-				log.Debug(err)
-				data.Nack(false, true)
+			if err = publishConfirmMsg(d.hub.(BackgroundJobWorker), msg); err != nil {
+				log.Error(err)
 				return nil, err
 			}
 		}
@@ -551,10 +563,9 @@ func (d *SubConsumer) Build() (ConsumerInterface, error) {
 	go func() {
 		defer log.Warnf("exchange %s 队列 %s 的 consumer %d go Delivery EXIT", d.GetExchange(), d.GetQueueName(), d.GetId())
 		log.Infof("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
+
 		for {
 			select {
-			case <-time.After(1 * time.Second):
-				d.hub.ReBalance(d.queueName, d.kind, d.exchange)
 			case data, ok := <-d.delivery:
 				if !ok {
 					return
@@ -594,4 +605,8 @@ func (d *SubConsumer) Close() {
 
 func (d *SubConsumer) RemoveSelf() {
 	d.cm.RemoveConsumer(d)
+}
+
+func (d *SubConsumer) DontNeedReBalance() bool {
+	return d.dontNeedReBalance
 }

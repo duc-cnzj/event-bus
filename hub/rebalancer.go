@@ -56,7 +56,7 @@ func (r *Rebalancer) ReBalance(queueName, kind, exchange string) {
 	if marshal, err := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange}); err != nil {
 		log.Error(err)
 	} else {
-		if err = producer.Publish(Message{Data: string(marshal)}); err != nil {
+		if err = producer.Publish(NewMessage(string(marshal))); err != nil {
 			log.Error(err)
 		}
 	}
@@ -78,10 +78,11 @@ func (r *Rebalancer) ListenQueue() {
 		return
 	}
 
-	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, RecheckExchange, WithQueueAutoDelete(true)); err != nil {
+	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, RecheckExchange, WithQueueAutoDelete(true), WithConsumerReBalance(false)); err != nil {
 		log.Error(err)
 		return
 	}
+	defer consumer.Close()
 
 	go func() {
 		for {

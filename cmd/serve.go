@@ -11,6 +11,7 @@ import (
 	"mq/models"
 	mq "mq/protos"
 	"mq/rpc"
+	"mq/schedule"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -52,7 +53,8 @@ var serveCmd = &cobra.Command{
 			h.(hub.BackgroundJobWorker).Run()
 		}
 
-		cr := runCron(h)
+		schedule := schedule.NewSchedule(h)
+		schedule.Run()
 
 		runHttp(h)
 
@@ -65,13 +67,7 @@ var serveCmd = &cobra.Command{
 		ch := make(chan os.Signal)
 		signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
 		s := <-ch
-		cr.Stop()
-		lockList.Range(func(key, value interface{}) bool {
-			l := value.(*dlm.Lock)
-			log.Debug("Release: ", l.GetCurrentOwner())
-			l.ForceRelease()
-			return true
-		})
+		schedule.Stop()
 		log.Info("receive: ", s)
 
 		done := make(chan struct{})
@@ -144,12 +140,12 @@ func runHttp(h hub.Interface) {
 		)
 		queueName := bytes.NewBufferString(ctx.Query("queue", "test_queue")).String()
 
-		if p, err = h.NewDurableNotAutoDeleteProducer(queueName, amqp.ExchangeDirect); err != nil {
+		if p, err = h.NewDurableNotAutoDeleteDirectProducer(queueName); err != nil {
 			ctx.Status(fiber.StatusServiceUnavailable)
 
 			return ctx.SendString("server unavailable")
 		}
-		if err := p.Publish(hub.Message{Data: "pub"}); err != nil {
+		if err := p.Publish(hub.NewMessage("pub")); err != nil {
 			log.Debug("http: /pub error", err)
 		}
 
@@ -162,11 +158,40 @@ func runHttp(h hub.Interface) {
 		})
 	})
 
+	app.Get("/topic", func(ctx *fiber.Ctx) error {
+		log.Debug("web pub")
+		var (
+			err error
+			p   hub.ProducerInterface
+		)
+		topic := bytes.NewBufferString(ctx.Query("topic", "default_topic")).String()
+
+		if p, err = h.ProducerManager().GetProducer("", amqp.ExchangeFanout, topic, hub.WithExchangeDurable(true), hub.WithQueueDurable(true)); err != nil {
+			ctx.Status(fiber.StatusServiceUnavailable)
+
+			return ctx.SendString(err.Error())
+		}
+
+		if err := p.Publish(hub.NewMessage("topic: " + topic)); err != nil {
+			log.Debug("http: /topic error", err)
+		}
+
+		return ctx.JSON(struct {
+			Success bool   `json:"success"`
+			Topic   string `json:"topic"`
+		}{
+			Success: true,
+			Topic:   topic,
+		})
+	})
+
 	app.Get("/delay_pub", func(ctx *fiber.Ctx) error {
 		log.Debug("web delay_pub")
 		queueName := bytes.NewBufferString(ctx.Query("queue", "test_queue")).String()
 
-		if err := h.DelayPublish(queueName, amqp.ExchangeDirect, hub.Message{Data: "pub"}, 600); err != nil {
+		producer, _ := h.NewDurableNotAutoDeleteDirectProducer(queueName)
+
+		if err := producer.DelayPublish(hub.NewMessage("delay pub").Delay(10)); err != nil {
 			log.Debug("http: /pub error", err)
 		}
 
@@ -193,7 +218,7 @@ func runCron(h hub.Interface) *cron.Cron {
 
 	if h.Config().CronRepublishEnabled {
 		log.Info("Republish job running.")
-		cr.AddFunc("@every 1m", func() {
+		cr.AddFunc("@every 1s", func() {
 			lock := dlm.NewLock(app.Redis(), "republish", dlm.WithEX(app.Config().DLMExpiration))
 			if lock.Acquire() {
 				var (
@@ -270,32 +295,29 @@ func runCron(h hub.Interface) *cron.Cron {
 									log.Error("republish: hub closed")
 									return
 								}
-								if producer, err = h.NewDurableNotAutoDeleteProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
-									return
-								}
 
-								if queue.Nackd() {
-									if err := h.DelayPublish(
-										queue.QueueName,
-										queue.Kind,
-										hub.Message{
-											RetryTimes: queue.RetryTimes + 1,
-											Data:       queue.Data,
-											Ref:        queue.UniqueId,
-										},
-										h.Config().NackdJobNextRunDelaySeconds,
-									); err != nil {
-										log.Error(err)
+								switch queue.Kind {
+								case amqp.ExchangeDirect:
+									if producer, err = h.NewDurableNotAutoDeleteDirectProducer(queue.QueueName); err != nil {
 										return
 									}
-								} else {
-									if err := producer.Publish(hub.Message{
-										Data:       queue.Data,
-										RetryTimes: queue.RetryTimes + 1,
-										Ref:        queue.UniqueId,
-									}); err != nil {
-										log.Error(err)
+
+									if !queue.Nackd() {
+										if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes + 1).SetRef(queue.UniqueId)); err != nil {
+											log.Error(err)
+											return
+										}
+									}
+								case amqp.ExchangeFanout:
+									if producer, err = h.NewDurableNotAutoDeletePubsubProducer(queue.Exchange); err != nil {
 										return
+									}
+
+									if !queue.Nackd() {
+										if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes + 1).SetRef(queue.UniqueId)); err != nil {
+											log.Error(err)
+											return
+										}
 									}
 								}
 
@@ -369,20 +391,28 @@ func runCron(h hub.Interface) *cron.Cron {
 									log.Error("delay publish: hub closed")
 									return
 								}
-								if producer, err = h.NewDurableNotAutoDeleteProducer(queue.QueueName, amqp.ExchangeDirect); err != nil {
-									return
+
+								switch queue.Kind {
+								case amqp.ExchangeDirect:
+									if producer, err = h.NewDurableNotAutoDeleteDirectProducer(queue.QueueName); err != nil {
+										return
+									}
+
+									if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes + 1).SetRef(queue.UniqueId)); err != nil {
+										log.Error(err)
+										return
+									}
+								case amqp.ExchangeFanout:
+									if producer, err = h.NewDurableNotAutoDeletePubsubProducer(queue.Exchange); err != nil {
+										return
+									}
+
+									if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes + 1).SetRef(queue.UniqueId)); err != nil {
+										log.Error(err)
+										return
+									}
 								}
-								err := producer.Publish(hub.Message{
-									RetryTimes: queue.RetryTimes,
-									Ref:        queue.Ref,
-									QueueName:  queue.QueueName,
-									UniqueId:   queue.UniqueId,
-									Data:       queue.Data,
-								})
-								if err != nil {
-									log.Panic("delay publish error", err)
-									return
-								}
+
 								app.DB().Delete(queue)
 							}
 						}

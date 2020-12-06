@@ -5,8 +5,8 @@ import (
 )
 
 type ProducerInterface interface {
-	DelayPublish(string, Message, uint) error
-	Publish(Message) error
+	DelayPublish(MessageInterface) error
+	Publish(MessageInterface) error
 	GetId() int64
 
 	GetConn() *amqp.Connection

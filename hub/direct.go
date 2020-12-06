@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	json "github.com/json-iterator/go"
-	"mq/config"
+	"mq/models"
 	"time"
 
 	"github.com/rs/xid"
@@ -43,6 +43,10 @@ func (d *DirectProducer) WithConsumerAck(needAck bool) {
 	panic("implement me")
 }
 
+func (d *DirectProducer) WithConsumerReBalance(needReBalance bool) {
+	panic("implement me")
+}
+
 func (d *DirectProducer) WithExchangeDurable(durable bool) {
 	d.exchangeDurable = durable
 }
@@ -63,24 +67,37 @@ func (d *DirectProducer) GetId() int64 {
 	return d.id
 }
 
-func (d *DirectProducer) DelayPublish(queueName string, message Message, delaySeconds uint) error {
-	return d.hub.DelayPublish(queueName, d.kind, message, delaySeconds)
+func (d *DirectProducer) DelayPublish(message MessageInterface) error {
+	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
+
+	return d.hub.DelayPublishQueue(models.DelayQueue{
+		UniqueId:     xid.New().String(),
+		Data:         message.GetData(),
+		QueueName:    d.queueName,
+		RunAfter:     &runAfter,
+		DelaySeconds: uint(message.GetDelaySeconds()),
+		Kind:         d.kind,
+		Exchange:     d.exchange,
+	})
 }
 
-func (d *DirectProducer) Publish(message Message) error {
+func (d *DirectProducer) Publish(msg MessageInterface) error {
 	var (
 		body []byte
 		err  error
 	)
-	message.Kind = amqp.ExchangeDirect
-	if message.QueueName == "" {
-		message.QueueName = d.GetQueueName()
-	}
-	if message.UniqueId == "" {
-		message.UniqueId = xid.New().String()
+	log.Info("here")
+	if msg.IsDelay() {
+		return d.DelayPublish(msg)
 	}
 
-	if body, err = json.Marshal(&message); err != nil {
+	msg.SetUniqueIdIfNotExist(xid.New().String())
+
+	msg.SetExchange(d.exchange)
+	msg.SetQueueName(d.queueName)
+	msg.SetKind(d.kind)
+
+	if body, err = json.Marshal(&msg); err != nil {
 		return err
 	}
 
@@ -92,7 +109,7 @@ func (d *DirectProducer) Publish(message Message) error {
 	default:
 		return d.channel.Publish(
 			d.exchange,
-			d.GetQueueName(),
+			d.queueName,
 			false,
 			false,
 			amqp.Publishing{
@@ -312,6 +329,10 @@ func (d *DirectConsumer) WithConsumerAck(needAck bool) {
 	d.autoAck = !needAck
 }
 
+func (d *DirectConsumer) WithConsumerReBalance(needReBalance bool) {
+	d.dontNeedReBalance = !needReBalance
+}
+
 func (d *DirectConsumer) WithExchangeDurable(durable bool) {
 	d.exchangeDurable = durable
 }
@@ -328,11 +349,10 @@ func (d *DirectConsumer) WithQueueDurable(durable bool) {
 	d.queueDurable = durable
 }
 
-func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
+func (d *DirectConsumer) Consume(ctx context.Context) (MessageInterface, error) {
 	var (
-		ackProducer ProducerInterface
-		err         error
-		msg         = &Message{}
+		err error
+		msg *Message
 	)
 
 	select {
@@ -350,17 +370,10 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 		}
 
 		json.Unmarshal(data.Body, &msg)
-		msg.RunAfter = nextRunTime(msg, d.hub.Config())
+		msg.SetRunAfter(nextRunTime(msg, d.hub.Config().MaxJobRunningSeconds))
 
 		if !d.AutoAck() {
-			if ackProducer, err = d.hub.(BackgroundJobWorker).GetConfirmProducer(); err != nil {
-				log.Debug(err)
-				data.Nack(false, true)
-				return nil, err
-			}
-
-			if err := ackProducer.Publish(*msg); err != nil {
-				log.Debug(err)
+			if err = publishConfirmMsg(d.hub.(BackgroundJobWorker), msg); err != nil {
 				data.Nack(false, true)
 				return nil, err
 			}
@@ -373,6 +386,27 @@ func (d *DirectConsumer) Consume(ctx context.Context) (*Message, error) {
 
 		return msg, nil
 	}
+}
+
+func publishConfirmMsg(w BackgroundJobWorker, msg *Message) error {
+	var (
+		ackProducer ProducerInterface
+		err         error
+	)
+
+	if ackProducer, err = w.GetConfirmProducer(); err != nil {
+		log.Debug(err)
+		return err
+	}
+
+	marshal, err := json.Marshal(NewConfirmMessage(msg.GetUniqueId(), msg.GetData(), msg.GetQueueName(), msg.GetKind(), msg.GetExchange(), msg.GetRef(), msg.GetRunAfter(), msg.GetRetryTimes()))
+
+	if err := ackProducer.Publish(NewMessage(string(marshal))); err != nil {
+		log.Debug(err)
+		return err
+	}
+
+	return nil
 }
 
 func (d *DirectConsumer) Ack(uniqueId string) error {
@@ -596,10 +630,9 @@ func (d *DirectConsumer) Build() (ConsumerInterface, error) {
 	go func() {
 		defer log.Warnf("exchange %s 队列 %s 的 consumer %d go Delivery EXIT", d.GetExchange(), d.GetQueueName(), d.GetId())
 		log.Debugf("exchange %s 队列 %s 的 consumer %d 往公共 Delivery 推消息", d.GetExchange(), d.GetQueueName(), d.GetId())
+
 		for {
 			select {
-			case <-time.After(1 * time.Second):
-				d.hub.ReBalance(d.queueName, d.kind, d.exchange)
 			case data, ok := <-d.delivery:
 				if !ok {
 					return
@@ -641,12 +674,16 @@ func (d *DirectConsumer) RemoveSelf() {
 	d.cm.RemoveConsumer(d)
 }
 
-func nextRunTime(msg *Message, config *config.Config) *time.Time {
-	if msg.RunAfter != nil {
-		return msg.RunAfter
+func (d *DirectConsumer) DontNeedReBalance() bool {
+	return d.dontNeedReBalance
+}
+
+func nextRunTime(msg *Message, maxJobRunSeconds uint) *time.Time {
+	if msg.GetRunAfter() != nil {
+		return msg.GetRunAfter()
 	}
 
-	next := time.Now().Add(time.Duration(config.MaxJobRunningSeconds) * time.Second)
+	next := time.Now().Add(time.Duration(maxJobRunSeconds) * time.Second)
 
 	return &next
 }

@@ -11,7 +11,7 @@ import (
 type ConfigLoader struct {
 }
 
-func (c *ConfigLoader) Boot(app *App) {
+func (c *ConfigLoader) Boot(app *Application) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
@@ -27,7 +27,7 @@ func (c *ConfigLoader) Boot(app *App) {
 		PrintConfig:                 viper.GetBool("PrintConfig"),
 		MaxJobRunningSeconds:        viper.GetUint("MaxJobRunningSeconds"),
 		NackdJobNextRunDelaySeconds: viper.GetUint("NackdJobNextRunDelaySeconds"),
-		RetryTimes:                  viper.GetUint("RetryTimes"),
+		RetryTimes:                  viper.GetUint("retryTimes"),
 		DLMExpiration:               viper.GetInt("DLMExpiration"),
 		HttpPort:                    viper.GetString("HttpPort"),
 		RpcPort:                     viper.GetString("RpcPort"),
@@ -56,7 +56,7 @@ func (c *ConfigLoader) Boot(app *App) {
 	}
 }
 
-func (c *ConfigLoader) printConfig(app *App) {
+func (c *ConfigLoader) printConfig(app *Application) {
 	cfg := app.cfg
 	if !cfg.PrintConfig {
 		return
@@ -69,7 +69,7 @@ func (c *ConfigLoader) printConfig(app *App) {
 	log.Warnf(f, "PrintConfig", cfg.PrintConfig)
 	log.Warnf(f, "MaxJobRunningSeconds", cfg.MaxJobRunningSeconds)
 	log.Warnf(f, "NackdJobNextRunDelaySeconds", cfg.NackdJobNextRunDelaySeconds)
-	log.Warnf(f, "RetryTimes", cfg.RetryTimes)
+	log.Warnf(f, "retryTimes", cfg.RetryTimes)
 	log.Warnf(f, "DLMExpiration", cfg.DLMExpiration)
 	log.Warnf(f, "HttpPort", cfg.HttpPort)
 	log.Warnf(f, "RpcPort", cfg.RpcPort)

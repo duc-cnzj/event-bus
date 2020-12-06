@@ -7,6 +7,7 @@ import (
 
 type MqConfigInterface interface {
 	WithConsumerAck(needAck bool)
+	WithConsumerReBalance(needReBalance bool)
 
 	WithExchangeDurable(durable bool)
 	WithExchangeAutoDelete(autoDelete bool)
@@ -16,7 +17,7 @@ type MqConfigInterface interface {
 }
 
 type ConsumerInterface interface {
-	Consume(ctx context.Context) (*Message, error)
+	Consume(ctx context.Context) (MessageInterface, error)
 	Ack(string) error
 	Nack(string) error
 	Delivery() chan amqp.Delivery
@@ -31,6 +32,8 @@ type ConsumerInterface interface {
 	Close()
 	ChannelDone() chan *amqp.Error
 	RemoveSelf()
+
+	DontNeedReBalance() bool
 }
 
 type ConsumerBase struct {
@@ -48,7 +51,8 @@ type ConsumerBase struct {
 	exchangeDurable    bool
 	exchangeAutoDelete bool
 
-	autoAck bool
+	autoAck           bool
+	dontNeedReBalance bool
 
 	delivery <-chan amqp.Delivery
 
@@ -61,6 +65,12 @@ type ConsumerBase struct {
 }
 
 type Option func(cci MqConfigInterface)
+
+func WithConsumerReBalance(needReBalance bool) Option {
+	return func(cci MqConfigInterface) {
+		cci.WithConsumerReBalance(needReBalance)
+	}
+}
 
 func WithConsumerAck(needAck bool) Option {
 	return func(cci MqConfigInterface) {
