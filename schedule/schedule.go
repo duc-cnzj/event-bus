@@ -18,11 +18,12 @@ type Interface interface {
 var app = bootstrapers.App()
 
 var cronJobs = []struct {
-	Spec string
-	Cmd  func(hub.Interface, *sync.Map) func()
+	Spec    string
+	Cmd     func(hub.Interface, *sync.Map) func()
+	Enabled bool
 }{
-	{Spec: "@every 1s", Cmd: Republish},
-	{Spec: "@every 1s", Cmd: DelayPublish},
+	{Spec: "@every 1s", Cmd: Republish, Enabled: app.Config().CronRepublishEnabled},
+	{Spec: "@every 1s", Cmd: DelayPublish, Enabled: app.Config().CronDelayPublishEnabled},
 }
 
 type Schedule struct {
@@ -42,12 +43,16 @@ func NewSchedule(hub hub.Interface) Interface {
 }
 
 func (s *Schedule) Run() {
+	num := 0
 	for _, job := range cronJobs {
-		s.cron.AddFunc(job.Spec, job.Cmd(s.hub, s.lockList))
+		if job.Enabled {
+			num++
+			s.cron.AddFunc(job.Spec, job.Cmd(s.hub, s.lockList))
+		}
 	}
 
 	s.cron.Start()
-	log.Infof("定时任务开始执行, 一共 %d 个定时任务", len(cronJobs))
+	log.Infof("定时任务开始执行, 一共 %d 个定时任务", num)
 }
 
 func (s *Schedule) Stop() {
