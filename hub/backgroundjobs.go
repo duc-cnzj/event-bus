@@ -51,7 +51,7 @@ func (h *Hub) GetDelayPublishConsumer() (ConsumerInterface, error) {
 		err      error
 	)
 
-	if consumer, err = h.NewDurableNotAutoDeleteDirectConsumer(DelayQueueName, true); err != nil {
+	if consumer, err = h.NewDurableNotAutoDeleteDirectConsumer(DelayQueueName, false); err != nil {
 		return nil, err
 	}
 
