@@ -12,6 +12,7 @@ import (
 	"time"
 )
 
+// todo 该模式下无法实现 ack 机制
 var _ ProducerInterface = (*PubProducer)(nil)
 var _ ConsumerInterface = (*SubConsumer)(nil)
 var _ MqConfigInterface = (*SubConsumer)(nil)
