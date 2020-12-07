@@ -41,7 +41,7 @@ type Interface interface {
 	NewDurableNotAutoDeleteDirectConsumer(queueName string, reBalance bool) (ConsumerInterface, error)
 
 	//For Pubsub
-	NewDurableNotAutoDeletePubsubProducer(queueName string) (ProducerInterface, error)
+	NewDurableNotAutoDeletePubsubProducer(exchange string) (ProducerInterface, error)
 	NewDurableNotAutoDeletePubsubConsumer(queueName, exchange string) (ConsumerInterface, error)
 
 	RemoveProducer(p ProducerInterface)
