@@ -12,62 +12,66 @@ import (
 	"time"
 )
 
-// FIXME: 该模式下无法实现 ack 机制
-var _ ProducerInterface = (*PubProducer)(nil)
-var _ ConsumerInterface = (*SubConsumer)(nil)
-var _ MqConfigInterface = (*SubConsumer)(nil)
-var _ MqConfigInterface = (*PubProducer)(nil)
+// todo topic consumer 需要监听 topic|topic.queueName 两个队列  topic.queueName 用于重发
+var _ ProducerInterface = (*TopicProducer)(nil)
+var _ ConsumerInterface = (*TopicConsumer)(nil)
+var _ MqConfigInterface = (*TopicConsumer)(nil)
+var _ MqConfigInterface = (*TopicProducer)(nil)
 
-type PubProducer struct {
+type TopicProducer struct {
 	*ProducerBase
 }
 
-func (p *PubProducer) DelayPublish(message MessageInterface) error {
+func (p *TopicProducer) DelayPublish(message MessageInterface) error {
 	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
 
 	return p.hub.DelayPublishQueue(models.DelayQueue{
 		UniqueId:     xid.New().String(),
 		Data:         message.GetData(),
 		QueueName:    p.queueName,
-		RunAfter:     &runAfter,
 		RoutingKey:   p.routingKey,
+		RunAfter:     &runAfter,
 		DelaySeconds: uint(message.GetDelaySeconds()),
 		Kind:         p.kind,
 		Exchange:     p.exchange,
 	})
 }
-func (p *PubProducer) WithConsumerAck(needAck bool) {
+
+func (p *TopicProducer) WithConsumerAck(needAck bool) {
 	panic("implement me")
 }
 
-func (p *PubProducer) WithConsumerReBalance(needReBalance bool) {
+func (p *TopicProducer) WithConsumerReBalance(needReBalance bool) {
 	panic("implement me")
 }
 
-func (p *PubProducer) WithExchangeDurable(durable bool) {
+func (p *TopicProducer) WithExchangeDurable(durable bool) {
 	p.exchangeDurable = durable
 }
 
-func (p *PubProducer) WithExchangeAutoDelete(autoDelete bool) {
+func (p *TopicProducer) WithExchangeAutoDelete(autoDelete bool) {
 	p.exchangeAutoDelete = autoDelete
 }
 
-func (p *PubProducer) WithQueueAutoDelete(autoDelete bool) {
+func (p *TopicProducer) WithQueueAutoDelete(autoDelete bool) {
 	p.queueAutoDelete = autoDelete
 }
 
-func (p *PubProducer) WithQueueDurable(durable bool) {
+func (p *TopicProducer) WithQueueDurable(durable bool) {
 	p.queueDurable = durable
 }
 
-func newPubProducer(exchange string, hub Interface, id int64, opts ...Option) ProducerBuilder {
-	d := &PubProducer{ProducerBase: &ProducerBase{
-		id:       id,
-		pm:       hub.ProducerManager(),
-		kind:     amqp.ExchangeFanout,
-		hub:      hub,
-		exchange: exchange,
+func newTopicProducer(exchange, routingKey string, hub Interface, id int64, opts ...Option) ProducerBuilder {
+	d := &TopicProducer{ProducerBase: &ProducerBase{
+		id:         id,
+		pm:         hub.ProducerManager(),
+		kind:       amqp.ExchangeTopic,
+		hub:        hub,
+		exchange:   exchange,
+		routingKey: routingKey,
 	}}
+
+	log.Warn(routingKey)
 
 	for _, opt := range opts {
 		opt(d)
@@ -76,8 +80,8 @@ func newPubProducer(exchange string, hub Interface, id int64, opts ...Option) Pr
 	return d
 }
 
-func (p *PubProducer) PrepareConn() error {
-	defer func(t time.Time) { log.Debugf("PubProducer PrepareConn time: %v", time.Since(t)) }(time.Now())
+func (p *TopicProducer) PrepareConn() error {
+	defer func(t time.Time) { log.Debugf("TopicProducer PrepareConn time: %v", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -93,12 +97,10 @@ func (p *PubProducer) PrepareConn() error {
 	return nil
 }
 
-func (p *PubProducer) PrepareChannel() error {
-	defer func(t time.Time) { log.Debugf("PubProducer prepareChannel %v.", time.Since(t)) }(time.Now())
+func (p *TopicProducer) PrepareChannel() error {
+	defer func(t time.Time) { log.Debugf("TopicProducer prepareChannel %v.", time.Since(t)) }(time.Now())
 
-	var (
-		err error
-	)
+	var err error
 
 	if p.channel, err = p.conn.Channel(); err != nil {
 		return err
@@ -107,12 +109,11 @@ func (p *PubProducer) PrepareChannel() error {
 	return nil
 }
 
-func (p *PubProducer) PrepareExchange() error {
-	defer func(t time.Time) { log.Debugf("PubProducer prepareExchange %v.", time.Since(t)) }(time.Now())
+func (p *TopicProducer) PrepareExchange() error {
+	defer func(t time.Time) { log.Debugf("TopicProducer prepareExchange %v.", time.Since(t)) }(time.Now())
 
-	var (
-		err error
-	)
+	var err error
+
 	if err = p.channel.ExchangeDeclare(
 		p.exchange,
 		p.kind,
@@ -124,18 +125,19 @@ func (p *PubProducer) PrepareExchange() error {
 	); err != nil {
 		return err
 	}
+
 	return nil
 }
 
-func (p *PubProducer) PrepareQueueDeclare() error {
+func (p *TopicProducer) PrepareQueueDeclare() error {
 	return nil
 }
 
-func (p *PubProducer) PrepareQueueBind() error {
+func (p *TopicProducer) PrepareQueueBind() error {
 	return nil
 }
 
-func (p *PubProducer) Build() (ProducerInterface, error) {
+func (p *TopicProducer) Build() (ProducerInterface, error) {
 	log.Infof("start build producer queueName %s kind %s exchange %s.", p.queueName, p.kind, p.exchange)
 
 	var (
@@ -173,35 +175,35 @@ func (p *PubProducer) Build() (ProducerInterface, error) {
 	return p, nil
 }
 
-func (p *PubProducer) GetId() int64 {
+func (p *TopicProducer) GetId() int64 {
 	return p.id
 }
 
-func (p *PubProducer) GetConn() *amqp.Connection {
+func (p *TopicProducer) GetConn() *amqp.Connection {
 	return p.conn
 }
 
-func (p *PubProducer) GetChannel() *amqp.Channel {
+func (p *TopicProducer) GetChannel() *amqp.Channel {
 	return p.channel
 }
 
-func (p *PubProducer) GetQueueName() string {
+func (p *TopicProducer) GetQueueName() string {
 	return p.queueName
 }
 
-func (p *PubProducer) GetKind() string {
+func (p *TopicProducer) GetKind() string {
 	return p.kind
 }
 
-func (p *PubProducer) GetRoutingKey() string {
+func (p *TopicProducer) GetRoutingKey() string {
 	return p.routingKey
 }
 
-func (p *PubProducer) GetExchange() string {
+func (p *TopicProducer) GetExchange() string {
 	return p.exchange
 }
 
-func (p *PubProducer) Publish(message MessageInterface) error {
+func (p *TopicProducer) Publish(message MessageInterface) error {
 	var (
 		body []byte
 		err  error
@@ -217,10 +219,13 @@ func (p *PubProducer) Publish(message MessageInterface) error {
 	message.SetKind(p.kind)
 	message.SetRoutingKey(p.routingKey)
 
+	log.Error("msg")
+	log.Error(message)
 	if body, err = json.Marshal(&message); err != nil {
 		return err
 	}
-
+	log.Error("p.routingKey")
+	log.Error(p.routingKey)
 	select {
 	case <-p.ChannelDone():
 		return ErrorServerUnavailable
@@ -229,7 +234,7 @@ func (p *PubProducer) Publish(message MessageInterface) error {
 	default:
 		return p.channel.Publish(
 			p.exchange,
-			"",
+			p.routingKey,
 			false,
 			false,
 			amqp.Publishing{
@@ -240,11 +245,11 @@ func (p *PubProducer) Publish(message MessageInterface) error {
 	}
 }
 
-func (p *PubProducer) RemoveSelf() {
+func (p *TopicProducer) RemoveSelf() {
 	p.pm.RemoveProducer(p)
 }
 
-func (p *PubProducer) Close() {
+func (p *TopicProducer) Close() {
 	if p.closed.isSet() {
 		log.Warnf("producer %s already closed.", p.GetQueueName())
 		return
@@ -262,22 +267,23 @@ func (p *PubProducer) Close() {
 	p.closed.setTrue()
 }
 
-func (p *PubProducer) ChannelDone() chan *amqp.Error {
+func (p *TopicProducer) ChannelDone() chan *amqp.Error {
 	return p.closeChan
 }
 
-type SubConsumer struct {
+type TopicConsumer struct {
 	*ConsumerBase
 }
 
-func newSubConsumer(queueName, exchange string, hub Interface, id int64, opts ...Option) ConsumerBuilder {
-	sc := &SubConsumer{ConsumerBase: &ConsumerBase{
-		id:        id,
-		cm:        hub.ConsumerManager(),
-		queueName: queueName,
-		kind:      amqp.ExchangeFanout,
-		hub:       hub,
-		exchange:  exchange,
+func newTopicConsumer(queueName, exchange, routingKey string, hub Interface, id int64, opts ...Option) ConsumerBuilder {
+	sc := &TopicConsumer{ConsumerBase: &ConsumerBase{
+		id:         id,
+		cm:         hub.ConsumerManager(),
+		queueName:  queueName,
+		kind:       amqp.ExchangeTopic,
+		hub:        hub,
+		exchange:   exchange,
+		routingKey: routingKey,
 	}}
 
 	for _, opt := range opts {
@@ -287,76 +293,87 @@ func newSubConsumer(queueName, exchange string, hub Interface, id int64, opts ..
 	return sc
 }
 
-func (d *SubConsumer) WithConsumerAck(needAck bool) {
+func (d *TopicConsumer) WithConsumerAck(needAck bool) {
 	d.autoAck = !needAck
 }
 
-func (d *SubConsumer) WithConsumerReBalance(needReBalance bool) {
+func (d *TopicConsumer) WithConsumerReBalance(needReBalance bool) {
 	d.dontNeedReBalance = !needReBalance
 }
 
-func (d *SubConsumer) WithExchangeDurable(durable bool) {
+func (d *TopicConsumer) WithExchangeDurable(durable bool) {
 	d.exchangeDurable = durable
 }
 
-func (d *SubConsumer) WithExchangeAutoDelete(autoDelete bool) {
+func (d *TopicConsumer) WithExchangeAutoDelete(autoDelete bool) {
 	d.exchangeAutoDelete = autoDelete
 }
 
-func (d *SubConsumer) WithQueueAutoDelete(autoDelete bool) {
+func (d *TopicConsumer) WithQueueAutoDelete(autoDelete bool) {
 	d.queueAutoDelete = autoDelete
 }
 
-func (d *SubConsumer) WithQueueDurable(durable bool) {
+func (d *TopicConsumer) WithQueueDurable(durable bool) {
 	d.queueDurable = durable
 }
 
-func (d *SubConsumer) Ack(uniqueId string) error {
+func (d *TopicConsumer) Ack(uniqueId string) error {
+	if d.AutoAck() {
+		return d.hub.Ack(uniqueId)
+	}
+
 	return nil
 }
 
-func (d *SubConsumer) Nack(uniqueId string) error {
+func (d *TopicConsumer) Nack(uniqueId string) error {
+	if !d.AutoAck() {
+		return d.hub.Nack(uniqueId)
+	}
+
 	return nil
 }
 
-func (d *SubConsumer) Delivery() chan amqp.Delivery {
+func (d *TopicConsumer) Delivery() chan amqp.Delivery {
 	return d.cm.Delivery(getKey(d.queueName, d.kind, d.exchange, d.routingKey))
 }
 
-func (d *SubConsumer) AutoAck() bool {
+func (d *TopicConsumer) AutoAck() bool {
 	return d.autoAck
 }
 
-func (d *SubConsumer) GetId() int64 {
+func (d *TopicConsumer) GetId() int64 {
 	return d.id
 }
 
-func (d *SubConsumer) GetConn() *amqp.Connection {
+func (d *TopicConsumer) GetConn() *amqp.Connection {
 	return d.conn
 }
 
-func (d *SubConsumer) GetChannel() *amqp.Channel {
+func (d *TopicConsumer) GetChannel() *amqp.Channel {
 	return d.channel
 }
 
-func (d *SubConsumer) GetQueueName() string {
+func (d *TopicConsumer) GetQueueName() string {
 	return d.queue.Name
 }
 
-func (d *SubConsumer) GetKind() string {
+func (d *TopicConsumer) GetKind() string {
 	return d.kind
 }
 
-func (d *SubConsumer) GetExchange() string {
+func (d *TopicConsumer) GetExchange() string {
 	return d.exchange
 }
 
-func (d *SubConsumer) GetRoutingKey() string {
+func (d *TopicConsumer) GetRoutingKey() string {
 	return d.routingKey
 }
 
-func (d *SubConsumer) Consume(ctx context.Context) (MessageInterface, error) {
-	var msg = &Message{}
+func (d *TopicConsumer) Consume(ctx context.Context) (MessageInterface, error) {
+	var (
+		err error
+		msg = &Message{}
+	)
 
 	select {
 	case <-d.hub.Done():
@@ -372,6 +389,17 @@ func (d *SubConsumer) Consume(ctx context.Context) (MessageInterface, error) {
 			return nil, ErrorServerUnavailable
 		}
 		json.Unmarshal(data.Body, &msg)
+		msg.SetQueueName(d.queueName)
+		msg.SetRef(msg.UniqueId)
+		msg.SetUniqueId(xid.New().String())
+		msg.SetRunAfter(nextRunTime(msg, d.hub.Config().NackdJobNextRunDelaySeconds))
+
+		if !d.AutoAck() {
+			if err = publishConfirmMsg(d.hub.(BackgroundJobWorker), msg); err != nil {
+				log.Error(err)
+				return nil, err
+			}
+		}
 
 		if err := data.Ack(false); err != nil {
 			log.Debug(err)
@@ -382,8 +410,8 @@ func (d *SubConsumer) Consume(ctx context.Context) (MessageInterface, error) {
 	}
 }
 
-func (d *SubConsumer) PrepareConn() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
+func (d *TopicConsumer) PrepareConn() error {
+	defer func(t time.Time) { log.Debugf("TopicConsumer PrepareConn %v.", time.Since(t)) }(time.Now())
 
 	var (
 		conn *amqp.Connection
@@ -399,8 +427,8 @@ func (d *SubConsumer) PrepareConn() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareExchange() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
+func (d *TopicConsumer) PrepareExchange() error {
+	defer func(t time.Time) { log.Debugf("TopicConsumer prepareExchange %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -419,8 +447,8 @@ func (d *SubConsumer) PrepareExchange() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareChannel() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
+func (d *TopicConsumer) PrepareChannel() error {
+	defer func(t time.Time) { log.Debugf("TopicConsumer prepareChannel %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err error
@@ -433,7 +461,7 @@ func (d *SubConsumer) PrepareChannel() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareQos() error {
+func (d *TopicConsumer) PrepareQos() error {
 	if d.hub.Config().PrefetchCount == 0 {
 		return nil
 	}
@@ -449,8 +477,8 @@ func (d *SubConsumer) PrepareQos() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareQueueDeclare() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareQueueDeclare %v.", time.Since(t)) }(time.Now())
+func (d *TopicConsumer) PrepareQueueDeclare() error {
+	defer func(t time.Time) { log.Debugf("TopicConsumer prepareQueueDeclare %v.", time.Since(t)) }(time.Now())
 
 	var (
 		err   error
@@ -471,17 +499,23 @@ func (d *SubConsumer) PrepareQueueDeclare() error {
 	return nil
 }
 
-func (d *SubConsumer) PrepareQueueBind() error {
-	defer func(t time.Time) { log.Debugf("SubConsumer prepareQueueBind %v.", time.Since(t)) }(time.Now())
+func (d *TopicConsumer) PrepareQueueBind() error {
+	defer func(t time.Time) { log.Debugf("TopicConsumer prepareQueueBind %v.", time.Since(t)) }(time.Now())
 
 	var err error
-	if err = d.channel.QueueBind(d.GetQueueName(), d.GetQueueName(), d.exchange, false, nil); err != nil {
+	// 监听两个key 一个是 topic 本身，另一个是 自身的队列
+	if err = d.channel.QueueBind(d.GetQueueName(), d.routingKey, d.exchange, false, nil); err != nil {
 		return err
 	}
+
+	if err = d.channel.QueueBind(d.GetQueueName(), GetSelfQueueRoutingKey(d.routingKey, d.queueName), d.exchange, false, nil); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (d *SubConsumer) PrepareDelivery() error {
+func (d *TopicConsumer) PrepareDelivery() error {
 	var (
 		delivery <-chan amqp.Delivery
 		err      error
@@ -494,45 +528,45 @@ func (d *SubConsumer) PrepareDelivery() error {
 	return nil
 }
 
-func (d *SubConsumer) ChannelDone() chan *amqp.Error {
+func (d *TopicConsumer) ChannelDone() chan *amqp.Error {
 	return d.closeChan
 }
 
-func (d *SubConsumer) Build() (ConsumerInterface, error) {
+func (d *TopicConsumer) Build() (ConsumerInterface, error) {
 	log.Infof("start build consumer %s.", d.queueName)
 	var (
 		err error
 	)
 
 	if err = d.PrepareConn(); err != nil {
-		log.Error("SubConsumer PrepareConn", err)
+		log.Error("TopicConsumer PrepareConn", err)
 		return nil, err
 	}
 
 	if err = d.PrepareChannel(); err != nil {
-		log.Error("SubConsumer prepareChannel", err)
+		log.Error("TopicConsumer prepareChannel", err)
 		return nil, err
 	}
 
 	if err = d.PrepareExchange(); err != nil {
-		log.Error("SubConsumer prepareExchange", err)
+		log.Error("TopicConsumer prepareExchange", err)
 		return nil, err
 	}
 
 	if err = d.PrepareQueueDeclare(); err != nil {
-		log.Error("SubConsumer prepareQueueDeclare", err)
+		log.Error("TopicConsumer prepareQueueDeclare", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQueueBind(); err != nil {
-		log.Error("SubConsumer prepareQueueBind", err)
+		log.Error("TopicConsumer prepareQueueBind", err)
 
 		return nil, err
 	}
 
 	if err = d.PrepareQos(); err != nil {
-		log.Error("SubConsumer PrepareQos", err)
+		log.Error("TopicConsumer PrepareQos", err)
 
 		return nil, err
 	}
@@ -575,7 +609,7 @@ func (d *SubConsumer) Build() (ConsumerInterface, error) {
 	return d, nil
 }
 
-func (d *SubConsumer) Close() {
+func (d *TopicConsumer) Close() {
 	if d.closed.isSet() {
 		log.Warnf("consumer %s is already closed.", d.GetQueueName())
 		return
@@ -595,10 +629,14 @@ func (d *SubConsumer) Close() {
 	d.closed.setTrue()
 }
 
-func (d *SubConsumer) RemoveSelf() {
+func (d *TopicConsumer) RemoveSelf() {
 	d.cm.RemoveConsumer(d)
 }
 
-func (d *SubConsumer) DontNeedReBalance() bool {
+func (d *TopicConsumer) DontNeedReBalance() bool {
 	return d.dontNeedReBalance
+}
+
+func GetSelfQueueRoutingKey(routingKey string, queueName string) string {
+	return routingKey + "@@@" + queueName
 }

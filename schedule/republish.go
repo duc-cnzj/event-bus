@@ -102,8 +102,12 @@ func Republish(h hub.Interface, lockList *sync.Map) func() {
 									log.Error(err)
 									return
 								}
-							case amqp.ExchangeFanout:
-								if producer, err = h.NewDurableNotAutoDeletePubsubProducer(queue.Exchange); err != nil {
+							case amqp.ExchangeTopic:
+								routingKey := queue.RoutingKey
+								if !queue.IsTopicSelfQueue() {
+									routingKey = hub.GetSelfQueueRoutingKey(queue.RoutingKey, queue.QueueName)
+								}
+								if producer, err = h.NewDurableNotAutoDeleteTopicProducer(queue.Exchange, routingKey); err != nil {
 									return
 								}
 

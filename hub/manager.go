@@ -14,7 +14,7 @@ type ProducerManagerInterface interface {
 	// GetDurableNotAutoDeleteProducer durable: true, autoDelete: false
 	GetDurableNotAutoDeleteProducer(queueName, kind, exchange string, opts ...Option) (ProducerInterface, error)
 	// GetProducer durable: false, autoDelete: false
-	GetProducer(queueName, kind, exchange string, opts ...Option) (ProducerInterface, error)
+	GetProducer(queueName, kind, routingKey, exchange string, opts ...Option) (ProducerInterface, error)
 	RemoveProducer(p ProducerInterface)
 	CloseAll()
 	Count() int
@@ -31,7 +31,7 @@ func NewProducerManager(hub *Hub) *ProducerManager {
 	return &ProducerManager{hub: hub}
 }
 
-func (pm *ProducerManager) GetProducer(queueName, kind, exchange string, opts ...Option) (ProducerInterface, error) {
+func (pm *ProducerManager) GetProducer(queueName, kind, routingKey, exchange string, opts ...Option) (ProducerInterface, error) {
 	var (
 		item *lb.Item
 		err  error
@@ -40,7 +40,7 @@ func (pm *ProducerManager) GetProducer(queueName, kind, exchange string, opts ..
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 
-	key := pm.getKey(queueName, kind, exchange)
+	key := pm.getKey(queueName, kind, exchange, routingKey)
 
 	if load, ok := pm.producers.Load(key); ok {
 		if item, err := load.(lb.LoadBalancerInterface).Get(); err != nil {
@@ -60,6 +60,8 @@ func (pm *ProducerManager) GetProducer(queueName, kind, exchange string, opts ..
 				return newDirectProducer(queueName, exchange, pm.hub, id, opts...).Build()
 			case amqp.ExchangeFanout:
 				return newPubProducer(exchange, pm.hub, id, opts...).Build()
+			case amqp.ExchangeTopic:
+				return newTopicProducer(exchange, routingKey, pm.hub, id, opts...).Build()
 			default:
 				return nil, errors.New("unsupport kind: " + kind)
 			}
@@ -86,7 +88,7 @@ func (pm *ProducerManager) GetDurableNotAutoDeleteProducer(queueName, kind, exch
 
 	opts = append([]Option{WithExchangeDurable(true), WithQueueDurable(true)}, opts...)
 
-	key := pm.getKey(queueName, kind, exchange)
+	key := pm.getKey(queueName, kind, exchange, "")
 
 	if load, ok := pm.producers.Load(key); ok {
 		if item, err := load.(lb.LoadBalancerInterface).Get(); err != nil {
@@ -123,7 +125,7 @@ func (pm *ProducerManager) GetDurableNotAutoDeleteProducer(queueName, kind, exch
 }
 
 func (pm *ProducerManager) RemoveProducer(p ProducerInterface) {
-	if load, ok := pm.producers.Load(pm.getKey(p.GetQueueName(), p.GetKind(), p.GetExchange())); ok {
+	if load, ok := pm.producers.Load(pm.getKey(p.GetQueueName(), p.GetKind(), p.GetExchange(), p.GetRoutingKey())); ok {
 		load.(lb.LoadBalancerInterface).Remove(p.GetId())
 	}
 }
@@ -169,12 +171,12 @@ func (pm *ProducerManager) Print() {
 	})
 }
 
-func (pm *ProducerManager) getKey(queueName, kind, exchange string) string {
-	return getKey(queueName, kind, exchange)
+func (pm *ProducerManager) getKey(queueName, kind, exchange, routingKey string) string {
+	return getKey(queueName, kind, exchange, routingKey)
 }
 
 type ConsumerManagerInterface interface {
-	GetConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error)
+	GetConsumer(queueName, kind, routingKey, exchange string, opts ...Option) (ConsumerInterface, error)
 	RemoveConsumer(ConsumerInterface)
 	Delivery(key string) chan amqp.Delivery
 	CloseAll()
@@ -204,7 +206,7 @@ func (cm *ConsumerManager) Delivery(key string) chan amqp.Delivery {
 	return ch
 }
 
-func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ...Option) (ConsumerInterface, error) {
+func (cm *ConsumerManager) GetConsumer(queueName, kind, routingKey, exchange string, opts ...Option) (ConsumerInterface, error) {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 
@@ -213,7 +215,7 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ..
 		err  error
 	)
 
-	key := cm.getKey(queueName, kind, exchange)
+	key := cm.getKey(queueName, kind, exchange, routingKey)
 
 	if load, ok := cm.consumers.Load(key); ok {
 		if item, err = load.(lb.LoadBalancerInterface).Get(); err != nil {
@@ -233,6 +235,8 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ..
 				return newDirectConsumer(queueName, exchange, cm.hub, id, opts...).Build()
 			case amqp.ExchangeFanout:
 				return newSubConsumer(queueName, exchange, cm.hub, id, opts...).Build()
+			case amqp.ExchangeTopic:
+				return newTopicConsumer(queueName, exchange, routingKey, cm.hub, id, opts...).Build()
 			default:
 				return nil, errors.New("unsupport kind: " + kind)
 			}
@@ -252,7 +256,7 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ..
 			for {
 				select {
 				case <-time.After(time.Second):
-					cm.hub.ReBalance(consumer.GetQueueName(), consumer.GetKind(), consumer.GetExchange())
+					cm.hub.ReBalance(consumer.GetQueueName(), consumer.GetKind(), consumer.GetExchange(), consumer.GetRoutingKey())
 				case <-cm.hub.Done():
 					return
 				case <-consumer.ChannelDone():
@@ -266,7 +270,7 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, exchange string, opts ..
 }
 
 func (cm *ConsumerManager) RemoveConsumer(c ConsumerInterface) {
-	if load, ok := cm.consumers.Load(cm.getKey(c.GetQueueName(), c.GetKind(), c.GetExchange())); ok {
+	if load, ok := cm.consumers.Load(cm.getKey(c.GetQueueName(), c.GetKind(), c.GetExchange(), c.GetRoutingKey())); ok {
 		load.(lb.LoadBalancerInterface).Remove(c.GetId())
 	}
 }
@@ -312,10 +316,10 @@ func (cm *ConsumerManager) Print() {
 	})
 }
 
-func (cm *ConsumerManager) getKey(queueName, kind, exchange string) string {
-	return getKey(queueName, kind, exchange)
+func (cm *ConsumerManager) getKey(queueName, kind, exchange, routingKey string) string {
+	return getKey(queueName, kind, exchange, routingKey)
 }
 
-func getKey(queueName, kind, exchange string) string {
-	return queueName + "@" + kind + "@" + exchange
+func getKey(queueName, kind, exchange, routingKey string) string {
+	return queueName + "@" + kind + "@" + exchange + "@" + routingKey
 }

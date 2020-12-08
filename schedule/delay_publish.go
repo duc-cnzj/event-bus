@@ -1,10 +1,9 @@
 package schedule
 
 import (
+	dlm "github.com/DuC-cnZj/dlm"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
-
-	dlm "github.com/DuC-cnZj/dlm"
 	"mq/hub"
 	"mq/models"
 	"sync"
@@ -71,8 +70,12 @@ func DelayPublish(h hub.Interface, lockList *sync.Map) func() {
 									log.Error(err)
 									return
 								}
-							case amqp.ExchangeFanout:
-								if producer, err = h.NewDurableNotAutoDeletePubsubProducer(queue.Exchange); err != nil {
+							case amqp.ExchangeTopic:
+								queueName := queue.QueueName
+								if !queue.IsTopicSelfQueue() {
+									queueName = hub.GetSelfQueueRoutingKey(queue.RoutingKey, queue.QueueName)
+								}
+								if producer, err = h.NewDurableNotAutoDeleteTopicProducer(queue.Exchange, queueName); err != nil {
 									return
 								}
 

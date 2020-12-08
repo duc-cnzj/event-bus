@@ -14,18 +14,20 @@ type ProducerInterface interface {
 	GetQueueName() string
 	GetKind() string
 	GetExchange() string
+	GetRoutingKey() string
 	Close()
 	ChannelDone() chan *amqp.Error
 }
 
 type ProducerBase struct {
-	id        int64
-	pm        ProducerManagerInterface
-	queueName string
-	queue     amqp.Queue
-	conn      *amqp.Connection
-	channel   *amqp.Channel
-	exchange  string
+	id         int64
+	pm         ProducerManagerInterface
+	queueName  string
+	queue      amqp.Queue
+	conn       *amqp.Connection
+	channel    *amqp.Channel
+	exchange   string
+	routingKey string
 
 	queueAutoDelete bool
 	queueDurable    bool

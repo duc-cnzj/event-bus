@@ -2,6 +2,7 @@ package models
 
 import (
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
@@ -16,12 +17,13 @@ const (
 type Queue struct {
 	ID uint `gorm:"primarykey"`
 
-	Data      string `json:"data"`
-	QueueName string `json:"queue_name" gorm:"type:varchar(50);"`
-
-	Kind     string `json:"kind" gorm:"type:varchar(20);"`
-	Exchange string `json:"exchange" gorm:"type:varchar(100);"`
 	UniqueId string `json:"unique_id" gorm:"not null;index:unique_id_idx,unique;type:varchar(100);"`
+	Data     string `json:"data"`
+
+	QueueName  string `json:"queue_name" gorm:"type:varchar(50);"`
+	Kind       string `json:"kind" gorm:"type:varchar(20);"`
+	Exchange   string `json:"exchange" gorm:"type:varchar(100);"`
+	RoutingKey string `json:"routing_key" gorm:"type:varchar(50);"`
 
 	Ref string `json:"ref" gorm:"type:varchar(100);"`
 
@@ -53,4 +55,8 @@ func (q *Queue) Nackd() bool {
 
 func (q *Queue) Confirmed() bool {
 	return q.ConfirmedAt != nil
+}
+
+func (q *Queue) IsTopicSelfQueue() bool {
+	return strings.Contains(q.RoutingKey, "@@@")
 }

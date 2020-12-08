@@ -78,6 +78,7 @@ func (d *DirectProducer) DelayPublish(message MessageInterface) error {
 		DelaySeconds: uint(message.GetDelaySeconds()),
 		Kind:         d.kind,
 		Exchange:     d.exchange,
+		RoutingKey:   d.routingKey,
 	})
 }
 
@@ -96,6 +97,7 @@ func (d *DirectProducer) Publish(msg MessageInterface) error {
 	msg.SetExchange(d.exchange)
 	msg.SetQueueName(d.queueName)
 	msg.SetKind(d.kind)
+	msg.SetRoutingKey(d.routingKey)
 
 	if body, err = json.Marshal(&msg); err != nil {
 		return err
@@ -142,6 +144,10 @@ func (d *DirectProducer) GetKind() string {
 
 func (d *DirectProducer) GetExchange() string {
 	return d.exchange
+}
+
+func (d *DirectProducer) GetRoutingKey() string {
+	return d.routingKey
 }
 
 func (d *DirectProducer) PrepareConn() error {
@@ -399,7 +405,7 @@ func publishConfirmMsg(w BackgroundJobWorker, msg *Message) error {
 		return err
 	}
 
-	marshal, err := json.Marshal(NewConfirmMessage(msg.GetUniqueId(), msg.GetData(), msg.GetQueueName(), msg.GetKind(), msg.GetExchange(), msg.GetRef(), msg.GetRunAfter(), msg.GetRetryTimes()))
+	marshal, err := json.Marshal(NewConfirmMessage(msg.GetUniqueId(), msg.GetData(), msg.GetQueueName(), msg.GetKind(), msg.GetExchange(), msg.GetRef(), msg.GetRunAfter(), msg.GetRetryTimes(), msg.GetRoutingKey()))
 
 	if err := ackProducer.Publish(NewMessage(string(marshal))); err != nil {
 		log.Debug(err)
@@ -426,7 +432,7 @@ func (d *DirectConsumer) Nack(uniqueId string) error {
 }
 
 func (d *DirectConsumer) Delivery() chan amqp.Delivery {
-	return d.cm.Delivery(getKey(d.queueName, d.kind, d.exchange))
+	return d.cm.Delivery(getKey(d.queueName, d.kind, d.exchange, d.routingKey))
 }
 
 func (d *DirectConsumer) AutoAck() bool {
@@ -455,6 +461,10 @@ func (d *DirectConsumer) GetKind() string {
 
 func (d *DirectConsumer) GetExchange() string {
 	return d.exchange
+}
+
+func (d *DirectConsumer) GetRoutingKey() string {
+	return d.routingKey
 }
 
 func (d *DirectConsumer) PrepareConn() error {

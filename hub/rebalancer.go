@@ -12,10 +12,11 @@ import (
 var RecheckExchange = "recheck_exchange_for_rebalancer"
 
 type RecheckMessage struct {
-	QueueName string
-	Exchange  string
-	Kind      string
-	Host      string
+	QueueName  string
+	RoutingKey string
+	Exchange   string
+	Kind       string
+	Host       string
 }
 
 type Rebalancer struct {
@@ -31,19 +32,19 @@ func NewRebalancer(hub *Hub) *Rebalancer {
 	return rb
 }
 
-func (r *Rebalancer) ReBalance(queueName, kind, exchange string) {
+func (r *Rebalancer) ReBalance(queueName, kind, exchange, routingKey string) {
 	var (
 		producer ProducerInterface
 		err      error
 		hostname string
 	)
-	if len(r.hub.cm.Delivery(getKey(queueName, kind, exchange))) > 0 {
+	if len(r.hub.cm.Delivery(getKey(queueName, kind, exchange, routingKey))) > 0 {
 		return
 	}
 	log.Debugf("heartbeat %s %s %s", queueName, kind, exchange)
 
 	// 无需持久化
-	if producer, err = r.hub.pm.GetProducer("", amqp.ExchangeFanout, RecheckExchange); err != nil {
+	if producer, err = r.hub.pm.GetProducer("", amqp.ExchangeFanout, "", RecheckExchange); err != nil {
 		log.Error(err)
 		return
 	}
@@ -53,7 +54,7 @@ func (r *Rebalancer) ReBalance(queueName, kind, exchange string) {
 		return
 	}
 
-	if marshal, err := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange}); err != nil {
+	if marshal, err := json.Marshal(&RecheckMessage{QueueName: queueName, Host: hostname, Kind: kind, Exchange: exchange, RoutingKey: routingKey}); err != nil {
 		log.Error(err)
 	} else {
 		if err = producer.Publish(NewMessage(string(marshal))); err != nil {
@@ -78,7 +79,7 @@ func (r *Rebalancer) ListenQueue() {
 		return
 	}
 
-	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, RecheckExchange, WithQueueAutoDelete(true), WithConsumerReBalance(false)); err != nil {
+	if consumer, err = r.hub.cm.GetConsumer(hostname, amqp.ExchangeFanout, "", RecheckExchange, WithQueueAutoDelete(true), WithConsumerReBalance(false)); err != nil {
 		log.Error(err)
 		return
 	}
@@ -108,7 +109,7 @@ func (r *Rebalancer) ListenQueue() {
 					log.Error(err)
 					break
 				}
-				key := getKey(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange)
+				key := getKey(recheckMsg.QueueName, recheckMsg.Kind, recheckMsg.Exchange, recheckMsg.RoutingKey)
 
 				log.Debugf("收到重平衡消息 queueName: %s 队列长度：%d host: %s", recheckMsg.QueueName, len(r.hub.cm.Delivery(key)), hostname)
 				if len(r.hub.cm.Delivery(key)) > 0 {

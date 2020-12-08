@@ -109,9 +109,9 @@ func (m *MQTopic) mustEmbedUnimplementedMQServer() {
 }
 
 func (m *MQTopic) newProducer(exchange string) (hub.ProducerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeletePubsubProducer(exchange)
+	return m.Hub.NewDurableNotAutoDeleteTopicProducer(exchange, exchange)
 }
 
 func (m *MQTopic) newConsumer(queueName, exchange string) (hub.ConsumerInterface, error) {
-	return m.Hub.NewDurableNotAutoDeletePubsubConsumer(queueName, exchange)
+	return m.Hub.NewDurableNotAutoDeleteTopicConsumer(queueName, exchange, exchange)
 }

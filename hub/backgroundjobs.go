@@ -218,7 +218,7 @@ func handleConfirm(db *gorm.DB, delivery amqp.Delivery) {
 		if err == gorm.ErrRecordNotFound {
 			if err = db.Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
-				DoUpdates: clause.AssignmentColumns([]string{"exchange", "kind", "run_after", "retry_times", "confirmed_at", "Data", "queue_name", "Ref", "is_confirmed"}),
+				DoUpdates: clause.AssignmentColumns([]string{"routing_key", "exchange", "kind", "run_after", "retry_times", "confirmed_at", "Data", "queue_name", "Ref", "is_confirmed"}),
 			}).Create(&models.Queue{
 				Exchange:    confirmData.Exchange,
 				Kind:        confirmData.Kind,
@@ -227,6 +227,7 @@ func handleConfirm(db *gorm.DB, delivery amqp.Delivery) {
 				ConfirmedAt: &now,
 				Data:        confirmData.Data,
 				QueueName:   confirmData.QueueName,
+				RoutingKey:  confirmData.RoutingKey,
 				RunAfter:    confirmData.RunAfter,
 				Ref:         confirmData.Ref,
 				IsConfirmed: true,
@@ -253,6 +254,7 @@ func handleConfirm(db *gorm.DB, delivery amqp.Delivery) {
 				ConfirmedAt: &now,
 				Data:        confirmData.Data,
 				QueueName:   confirmData.QueueName,
+				RoutingKey:  confirmData.RoutingKey,
 				RunAfter:    confirmData.RunAfter,
 				Ref:         confirmData.Ref,
 				IsConfirmed: true,
@@ -269,6 +271,7 @@ func handleConfirm(db *gorm.DB, delivery amqp.Delivery) {
 			Exchange:    confirmData.Exchange,
 			Kind:        confirmData.Kind,
 			RetryTimes:  confirmData.RetryTimes,
+			RoutingKey:  confirmData.RoutingKey,
 			ConfirmedAt: &now,
 			Data:        confirmData.Data,
 			QueueName:   confirmData.QueueName,

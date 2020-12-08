@@ -166,7 +166,7 @@ func runHttp(h hub.Interface) {
 		)
 		topic := bytes.NewBufferString(ctx.Query("topic", "default_topic")).String()
 
-		if p, err = h.ProducerManager().GetProducer("", amqp.ExchangeFanout, topic, hub.WithExchangeDurable(true), hub.WithQueueDurable(true)); err != nil {
+		if p, err = h.NewDurableNotAutoDeleteTopicProducer(topic, topic); err != nil {
 			ctx.Status(fiber.StatusServiceUnavailable)
 
 			return ctx.SendString(err.Error())
@@ -183,6 +183,37 @@ func runHttp(h hub.Interface) {
 			Success: true,
 			Topic:   topic,
 		})
+	})
+	app.Get("/topic_consumer", func(ctx *fiber.Ctx) error {
+		log.Debug("web pub")
+		var (
+			err error
+			p   hub.ConsumerInterface
+		)
+		queue := bytes.NewBufferString(ctx.Query("queue", "my_topic_queue")).String()
+		topic := bytes.NewBufferString(ctx.Query("topic", "default_topic")).String()
+
+		if p, err = h.NewDurableNotAutoDeleteTopicConsumer(queue, topic, topic); err != nil {
+			ctx.Status(fiber.StatusServiceUnavailable)
+
+			return ctx.SendString(err.Error())
+		}
+
+		if d, err := p.Consume(context.Background()); err != nil {
+			log.Debug("http: /topic error", err)
+			return ctx.SendString(err.Error())
+		} else {
+			return ctx.JSON(struct {
+				Success bool   `json:"success"`
+				Topic   string `json:"topic"`
+				Data    string `json:"data"`
+			}{
+				Success: true,
+				Topic:   topic,
+				Data:    d.GetData(),
+			})
+		}
+
 	})
 
 	app.Get("/delay_pub", func(ctx *fiber.Ctx) error {

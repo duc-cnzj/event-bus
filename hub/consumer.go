@@ -28,6 +28,7 @@ type ConsumerInterface interface {
 	GetQueueName() string
 	GetKind() string
 	GetExchange() string
+	GetRoutingKey() string
 	AutoAck() bool
 	Close()
 	ChannelDone() chan *amqp.Error
@@ -37,13 +38,14 @@ type ConsumerInterface interface {
 }
 
 type ConsumerBase struct {
-	id        int64
-	queueName string
-	cm        ConsumerManagerInterface
-	queue     amqp.Queue
-	conn      *amqp.Connection
-	channel   *amqp.Channel
-	exchange  string
+	id         int64
+	queueName  string
+	cm         ConsumerManagerInterface
+	queue      amqp.Queue
+	conn       *amqp.Connection
+	channel    *amqp.Channel
+	exchange   string
+	routingKey string
 
 	queueAutoDelete bool
 	queueDurable    bool

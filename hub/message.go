@@ -8,6 +8,7 @@ type MessageInterface interface {
 	SetExchange(exchange string) MessageInterface
 	SetRunAfter(runAfter *time.Time) MessageInterface
 	SetRetryTimes(times uint8) MessageInterface
+	SetRoutingKey(routingKey string) MessageInterface
 	SetQueueName(queueName string) MessageInterface
 	SetKind(kind string) MessageInterface
 	SetUniqueIdIfNotExist(uniqueId string) MessageInterface
@@ -21,6 +22,7 @@ type MessageInterface interface {
 	GetData() string
 	GetRunAfter() *time.Time
 	GetRef() string
+	GetRoutingKey() string
 	GetRetryTimes() uint8
 	GetDelaySeconds() int64
 	IsDelay() bool
@@ -32,13 +34,14 @@ type ConfirmMessage struct {
 	QueueName  string
 	Kind       string
 	Exchange   string
+	RoutingKey string
 	Ref        string
 	RunAfter   *time.Time
 	RetryTimes uint8
 }
 
-func NewConfirmMessage(uniqueId string, data string, queueName string, kind string, exchange string, ref string, runAfter *time.Time, retryTimes uint8) *ConfirmMessage {
-	return &ConfirmMessage{UniqueId: uniqueId, Data: data, QueueName: queueName, Kind: kind, Exchange: exchange, Ref: ref, RunAfter: runAfter, RetryTimes: retryTimes}
+func NewConfirmMessage(uniqueId string, data string, queueName string, kind string, exchange string, ref string, runAfter *time.Time, retryTimes uint8, routingKey string) *ConfirmMessage {
+	return &ConfirmMessage{UniqueId: uniqueId, Data: data, QueueName: queueName, Kind: kind, Exchange: exchange, Ref: ref, RunAfter: runAfter, RetryTimes: retryTimes, RoutingKey: routingKey}
 }
 
 type AckMessage struct {
@@ -52,9 +55,10 @@ func NewAckMessage(uniqueId string, ackedAt time.Time) *AckMessage {
 
 type MetaData struct {
 	// 元数据
-	QueueName string
-	Kind      string
-	Exchange  string
+	QueueName  string
+	Kind       string
+	Exchange   string
+	RoutingKey string
 }
 
 type Message struct {
@@ -111,6 +115,11 @@ func (m *Message) SetUniqueId(uniqueId string) MessageInterface {
 
 	return m
 }
+func (m *Message) SetRoutingKey(routingKey string) MessageInterface {
+	m.MetaData.RoutingKey = routingKey
+
+	return m
+}
 func (m *Message) SetRef(ref string) MessageInterface {
 	m.Ref = ref
 
@@ -130,6 +139,9 @@ func (m *Message) GetExchange() string {
 }
 func (m *Message) GetKind() string {
 	return m.MetaData.Kind
+}
+func (m *Message) GetRoutingKey() string {
+	return m.MetaData.RoutingKey
 }
 func (m *Message) GetUniqueId() string {
 	return m.UniqueId

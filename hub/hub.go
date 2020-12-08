@@ -33,8 +33,8 @@ type Interface interface {
 	ConsumerManager() ConsumerManagerInterface
 	ProducerManager() ProducerManagerInterface
 
-	NewProducer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error)
-	NewConsumer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error)
+	NewProducer(queueName, kind, routingKey, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error)
+	NewConsumer(queueName, kind, routingKey, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error)
 
 	//For Direct
 	NewDurableNotAutoDeleteDirectProducer(queueName string) (ProducerInterface, error)
@@ -44,13 +44,17 @@ type Interface interface {
 	NewDurableNotAutoDeletePubsubProducer(exchange string) (ProducerInterface, error)
 	NewDurableNotAutoDeletePubsubConsumer(queueName, exchange string) (ConsumerInterface, error)
 
+	// For topic
+	NewDurableNotAutoDeleteTopicProducer(exchange, routingKey string) (ProducerInterface, error)
+	NewDurableNotAutoDeleteTopicConsumer(queueName, routingKey, exchange string) (ConsumerInterface, error)
+
 	RemoveProducer(p ProducerInterface)
 	RemoveConsumer(c ConsumerInterface)
 
 	CloseAllConsumer()
 	CloseAllProducer()
 
-	ReBalance(queueName, kind, exchange string)
+	ReBalance(queueName, kind, exchange, routingKey string)
 
 	GetAmqpConn() (*amqp.Connection, error)
 
@@ -100,6 +104,23 @@ func NewHub(conn *amqp.Connection, cfg *config.Config, db *gorm.DB) Interface {
 	return h
 }
 
+func (h *Hub) NewDurableNotAutoDeleteTopicProducer(exchange, routingKey string) (ProducerInterface, error) {
+	var (
+		producer ProducerInterface
+		err      error
+	)
+
+	if h.IsClosed() {
+		return nil, ErrorServerUnavailable
+	}
+
+	if producer, err = h.NewProducer("", amqp.ExchangeTopic, routingKey, exchange, true, false, true, false); err != nil {
+		return nil, err
+	}
+
+	return producer, nil
+}
+
 func (h *Hub) NewDurableNotAutoDeletePubsubProducer(exchange string) (ProducerInterface, error) {
 	var (
 		producer ProducerInterface
@@ -111,7 +132,7 @@ func (h *Hub) NewDurableNotAutoDeletePubsubProducer(exchange string) (ProducerIn
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.NewProducer("", amqp.ExchangeFanout, exchange, true, false, true, false); err != nil {
+	if producer, err = h.NewProducer("", amqp.ExchangeFanout, "", exchange, true, false, true, false); err != nil {
 		log.Debugf("hub.NewDurableNotAutoDeleteDirectProducer GetDurableNotAutoDeleteProducer err %v.", err)
 		return nil, err
 	}
@@ -129,14 +150,31 @@ func (h *Hub) NewDurableNotAutoDeletePubsubConsumer(queueName, exchange string) 
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeFanout, exchange, true, false, true, false, true, false); err != nil {
+	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeFanout, "", exchange, true, false, true, false, true, true); err != nil {
 		return nil, err
 	}
 
 	return consumer, nil
 }
 
-func (h *Hub) NewProducer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error) {
+func (h *Hub) NewDurableNotAutoDeleteTopicConsumer(queueName, routingKey, exchange string) (ConsumerInterface, error) {
+	var (
+		consumer ConsumerInterface
+		err      error
+	)
+
+	if h.IsClosed() {
+		return nil, ErrorServerUnavailable
+	}
+
+	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeTopic, routingKey, exchange, true, false, true, false, true, false); err != nil {
+		return nil, err
+	}
+
+	return consumer, nil
+}
+
+func (h *Hub) NewProducer(queueName, kind, routingKey, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete bool) (ProducerInterface, error) {
 	var (
 		producer ProducerInterface
 		err      error
@@ -154,16 +192,16 @@ func (h *Hub) NewProducer(queueName, kind, exchange string, durableExchange, exc
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.ProducerManager().GetProducer(queueName, kind, exchange, opts...); err != nil {
+	if producer, err = h.ProducerManager().GetProducer(queueName, kind, routingKey, exchange, opts...); err != nil {
 		return nil, err
 	}
 
 	return producer, nil
 }
 
-func (h *Hub) ReBalance(queueName, kind, exchange string) {
+func (h *Hub) ReBalance(queueName, kind, exchange, routingKey string) {
 	log.Debugf("重平衡心跳检查 queue %s kind %s exchange %s", queueName, kind, exchange)
-	h.rb.ReBalance(queueName, kind, exchange)
+	h.rb.ReBalance(queueName, kind, exchange, routingKey)
 }
 
 func (h *Hub) Ack(uniqueId string) error {
@@ -255,7 +293,7 @@ func (h *Hub) NewDurableNotAutoDeleteDirectProducer(queueName string) (ProducerI
 		return nil, ErrorServerUnavailable
 	}
 
-	if producer, err = h.NewProducer(queueName, amqp.ExchangeDirect, DefaultExchange, true, false, true, false); err != nil {
+	if producer, err = h.NewProducer(queueName, amqp.ExchangeDirect, "", DefaultExchange, true, false, true, false); err != nil {
 		log.Debugf("hub.NewDurableNotAutoDeleteDirectProducer GetDurableNotAutoDeleteProducer err %v.", err)
 		return nil, err
 	}
@@ -263,7 +301,7 @@ func (h *Hub) NewDurableNotAutoDeleteDirectProducer(queueName string) (ProducerI
 	return producer, nil
 }
 
-func (h *Hub) NewConsumer(queueName, kind, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error) {
+func (h *Hub) NewConsumer(queueName, kind, routingKey, exchange string, durableExchange, exchangeAutoDelete, durableQueue, queueAutoDelete, reBalance, autoAck bool) (ConsumerInterface, error) {
 	var (
 		consumer ConsumerInterface
 		err      error
@@ -282,7 +320,7 @@ func (h *Hub) NewConsumer(queueName, kind, exchange string, durableExchange, exc
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind, exchange, opts...); err != nil {
+	if consumer, err = h.ConsumerManager().GetConsumer(queueName, kind, routingKey, exchange, opts...); err != nil {
 		return nil, err
 	}
 
@@ -299,7 +337,7 @@ func (h *Hub) NewDurableNotAutoDeleteDirectConsumer(queueName string, reBalance 
 		return nil, ErrorServerUnavailable
 	}
 
-	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeDirect, DefaultExchange, true, false, true, false, reBalance, false); err != nil {
+	if consumer, err = h.NewConsumer(queueName, amqp.ExchangeDirect, "", DefaultExchange, true, false, true, false, reBalance, false); err != nil {
 		return nil, err
 	}
 
