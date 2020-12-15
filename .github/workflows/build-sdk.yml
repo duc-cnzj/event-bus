@@ -19,7 +19,7 @@ jobs:
       - name: Set up php and composer
         uses: shivammathur/setup-php@2.3.0
         with:
-          php-version: php7.4
+          php-version: '7.4'
           extensions: mbstring, intl
           ini-values: post_max_size=256M, short_open_tag=On
           coverage: xdebug
