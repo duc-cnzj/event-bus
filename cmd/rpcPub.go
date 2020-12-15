@@ -61,18 +61,22 @@ var rpcPubCmd = &cobra.Command{
 		wg := sync.WaitGroup{}
 		num := wgnum
 		wg.Add(num)
+		mu := &sync.Mutex{}
 		for i := 0; i < num; i++ {
 			go func() {
 				defer wg.Done()
 				for {
-					if testMessageTotalNum > 0 && atomic.LoadInt64(&total) >= testMessageTotalNum {
+					mu.Lock()
+					if testMessageTotalNum > 0 && total >= testMessageTotalNum {
+						mu.Unlock()
 						return
 					}
 					_, err := client.Publish(context.Background(), &mq.PublishRequest{Data: "data", Queue: testQueueName})
 					if err != nil {
 						log.Error(err)
 					}
-					atomic.AddInt64(&total, 1)
+					total++
+					mu.Unlock()
 				}
 			}()
 		}

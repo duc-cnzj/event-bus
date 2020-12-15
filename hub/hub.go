@@ -236,7 +236,6 @@ func (h *Hub) Nack(uniqueId string) error {
 
 	if err = h.GetDBConn().Unscoped().Model(&models.Queue{}).Where("unique_id = ?", uniqueId).First(&queue).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-
 			if err = h.GetDBConn().Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "unique_id"}},
 				DoUpdates: clause.AssignmentColumns([]string{"nacked_at", "run_after", "status"}),

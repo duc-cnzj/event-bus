@@ -87,7 +87,6 @@ func (d *DirectProducer) Publish(msg MessageInterface) error {
 		body []byte
 		err  error
 	)
-	log.Info("here")
 	if msg.IsDelay() {
 		return d.DelayPublish(msg)
 	}

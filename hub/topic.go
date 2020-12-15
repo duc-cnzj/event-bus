@@ -389,9 +389,9 @@ func (d *TopicConsumer) Consume(ctx context.Context) (MessageInterface, error) {
 			return nil, ErrorServerUnavailable
 		}
 		json.Unmarshal(data.Body, &msg)
-		msg.SetQueueName(d.queueName)
-		msg.SetRef(msg.UniqueId)
+		msg.SetRef(msg.GetRef())
 		msg.SetUniqueId(xid.New().String())
+		msg.SetQueueName(d.queueName)
 		msg.SetRunAfter(nextRunTime(msg, d.hub.Config().NackdJobNextRunDelaySeconds))
 
 		if !d.AutoAck() {

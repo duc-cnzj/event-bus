@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 	"strings"
 	"time"
@@ -28,5 +29,5 @@ type DelayQueue struct {
 }
 
 func (q DelayQueue) IsTopicSelfQueue() bool {
-	return strings.Contains(q.RoutingKey, "@@@")
+	return q.Kind == amqp.ExchangeTopic && strings.Contains(q.RoutingKey, "@@@")
 }

@@ -13,7 +13,6 @@ import (
 	mq "mq/protos"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -58,19 +57,24 @@ var rpcSubCmd = &cobra.Command{
 		defer cancel()
 		wg := sync.WaitGroup{}
 		num := wgnum
+		mu := &sync.Mutex{}
 		wg.Add(num)
 		for i := 0; i < num; i++ {
 			go func() {
 				defer wg.Done()
 				for {
-					if testMessageTotalNum > 0 && atomic.LoadInt64(&total) >= testMessageTotalNum {
+					mu.Lock()
+					if testMessageTotalNum > 0 && total >= testMessageTotalNum {
+						mu.Unlock()
 						return
 					}
-					_, err := client.Subscribe(context.Background(), &mq.SubscribeRequest{Queue: testQueueName})
+					res, err := client.Subscribe(context.Background(), &mq.SubscribeRequest{Queue: testQueueName})
 					if err != nil {
 						log.Error(err)
 					}
-					atomic.AddInt64(&total, 1)
+					client.Ack(context.Background(), &mq.QueueId{Id: res.Id})
+					total++
+					mu.Unlock()
 				}
 			}()
 		}

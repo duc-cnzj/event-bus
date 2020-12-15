@@ -98,7 +98,6 @@ func (r *Rebalancer) ListenQueue() {
 				)
 				delivery.Ack(true)
 				if !ok {
-					log.Info("not okkk")
 					break
 				}
 				if err = json.Unmarshal(delivery.Body, &msg); err != nil {

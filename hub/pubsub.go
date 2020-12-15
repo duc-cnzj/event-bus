@@ -5,7 +5,6 @@ import (
 	"errors"
 	json "github.com/json-iterator/go"
 	"github.com/rs/xid"
-	"mq/models"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
@@ -13,6 +12,7 @@ import (
 )
 
 // FIXME: 该模式下无法实现 ack 机制
+// FIXME: 暂时不支持 delay publish
 var _ ProducerInterface = (*PubProducer)(nil)
 var _ ConsumerInterface = (*SubConsumer)(nil)
 var _ MqConfigInterface = (*SubConsumer)(nil)
@@ -23,18 +23,19 @@ type PubProducer struct {
 }
 
 func (p *PubProducer) DelayPublish(message MessageInterface) error {
-	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
-
-	return p.hub.DelayPublishQueue(models.DelayQueue{
-		UniqueId:     xid.New().String(),
-		Data:         message.GetData(),
-		QueueName:    p.queueName,
-		RunAfter:     &runAfter,
-		RoutingKey:   p.routingKey,
-		DelaySeconds: uint(message.GetDelaySeconds()),
-		Kind:         p.kind,
-		Exchange:     p.exchange,
-	})
+	//runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
+	//
+	//return p.hub.DelayPublishQueue(models.DelayQueue{
+	//	UniqueId:     xid.New().String(),
+	//	Data:         message.GetData(),
+	//	QueueName:    p.queueName,
+	//	RunAfter:     &runAfter,
+	//	RoutingKey:   p.routingKey,
+	//	DelaySeconds: uint(message.GetDelaySeconds()),
+	//	Kind:         p.kind,
+	//	Exchange:     p.exchange,
+	//})
+	return nil
 }
 func (p *PubProducer) WithConsumerAck(needAck bool) {
 	panic("implement me")
@@ -207,9 +208,9 @@ func (p *PubProducer) Publish(message MessageInterface) error {
 		err  error
 	)
 
-	if message.IsDelay() {
-		return p.DelayPublish(message)
-	}
+	//if message.IsDelay() {
+	//	return p.DelayPublish(message)
+	//}
 
 	message.SetUniqueIdIfNotExist(xid.New().String())
 	message.SetExchange(p.exchange)

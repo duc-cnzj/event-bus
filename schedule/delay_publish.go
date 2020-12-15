@@ -71,15 +71,16 @@ func DelayPublish(h hub.Interface, lockList *sync.Map) func() {
 									return
 								}
 							case amqp.ExchangeTopic:
-								queueName := queue.QueueName
-								if !queue.IsTopicSelfQueue() {
-									queueName = hub.GetSelfQueueRoutingKey(queue.RoutingKey, queue.QueueName)
-								}
-								if producer, err = h.NewDurableNotAutoDeleteTopicProducer(queue.Exchange, queueName); err != nil {
+								if producer, err = h.NewDurableNotAutoDeleteTopicProducer(queue.Exchange, queue.RoutingKey); err != nil {
+									log.Error(err)
 									return
 								}
 
-								if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes).SetRef(queue.UniqueId)); err != nil {
+								if err := producer.Publish(
+									hub.NewMessage(queue.Data).
+										SetRetryTimes(queue.RetryTimes).
+										SetRef(queue.UniqueId),
+								); err != nil {
 									log.Error(err)
 									return
 								}
