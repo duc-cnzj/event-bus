@@ -69,7 +69,7 @@ var rpcPubCmd = &cobra.Command{
 						return
 					}
 					atomic.AddInt64(&total, 1)
-					_, err := client.Publish(context.Background(), &mq.PublishRequest{Data: "data", Queue: testQueueName})
+					_, err := client.Publish(context.Background(), &mq.PublishRequest{Data: "data", Queue: testQueueName, ExpirationSeconds: 60})
 					if err != nil {
 						log.Error(err)
 					}

@@ -30,7 +30,7 @@ func (m *MQTopic) Publish(ctx context.Context, pub *mq.TopicPublishRequest) (*em
 		return nil, err
 	}
 
-	if err := producer.Publish(hub.NewMessage(pub.Data).SetMessageExpiration(uint(pub.Expiration))); err != nil {
+	if err := producer.Publish(hub.NewMessage(pub.Data).SetMessageExpiration(uint(pub.ExpirationSeconds))); err != nil {
 		return nil, err
 	}
 
@@ -52,7 +52,7 @@ func (m *MQTopic) DelayPublish(ctx context.Context, req *mq.DelayTopicPublishReq
 	if err = producer.DelayPublish(
 		hub.NewMessage(req.Data).
 			Delay(uint(req.DelaySeconds)).
-			SetMessageExpiration(uint(req.Expiration)),
+			SetMessageExpiration(uint(req.ExpirationSeconds)),
 	); err != nil {
 		return nil, err
 	}
