@@ -28,7 +28,8 @@ type MessageInterface interface {
 	GetRetryTimes() uint8
 	GetDelaySeconds() int64
 	IsDelay() bool
-	GetMessageExpiration() string
+	GetMessageExpirationString() string
+	GetMessageExpiration() uint
 }
 
 type ConfirmMessage struct {
@@ -88,7 +89,11 @@ func (m *Message) SetMessageExpiration(seconds uint) MessageInterface {
 	return m
 }
 
-func (m *Message) GetMessageExpiration() string {
+func (m *Message) GetMessageExpiration() uint {
+	return m.Expiration
+}
+
+func (m *Message) GetMessageExpirationString() string {
 	if m.Expiration > 0 {
 		return strconv.Itoa(int(m.Expiration) * 1000)
 	}

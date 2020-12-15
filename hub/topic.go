@@ -26,14 +26,15 @@ func (p *TopicProducer) DelayPublish(message MessageInterface) error {
 	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
 
 	return p.hub.DelayPublishQueue(models.DelayQueue{
-		UniqueId:     xid.New().String(),
-		Data:         message.GetData(),
-		QueueName:    p.queueName,
-		RoutingKey:   p.routingKey,
-		RunAfter:     &runAfter,
-		DelaySeconds: uint(message.GetDelaySeconds()),
-		Kind:         p.kind,
-		Exchange:     p.exchange,
+		ExpirationSeconds: message.GetMessageExpiration(),
+		UniqueId:          xid.New().String(),
+		Data:              message.GetData(),
+		QueueName:         p.queueName,
+		RoutingKey:        p.routingKey,
+		RunAfter:          &runAfter,
+		DelaySeconds:      uint(message.GetDelaySeconds()),
+		Kind:              p.kind,
+		Exchange:          p.exchange,
 	})
 }
 
@@ -237,7 +238,7 @@ func (p *TopicProducer) Publish(message MessageInterface) error {
 			amqp.Publishing{
 				ContentType: "application/json",
 				Body:        body,
-				Expiration:  message.GetMessageExpiration(),
+				Expiration:  message.GetMessageExpirationString(),
 			},
 		)
 	}

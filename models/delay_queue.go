@@ -18,10 +18,11 @@ type DelayQueue struct {
 	UniqueId string `json:"unique_id" gorm:"not null;index:unique_id_idx,unique;type:varchar(100);"`
 	Data     string `json:"data" gorm:"not null;"`
 
-	RunAfter     *time.Time `json:"run_after" gorm:"nullable;index:run_after_deleted_at_idx;"`
-	DelaySeconds uint       `json:"delay_seconds" gorm:"not null;default:0;"`
-	Ref          string     `json:"ref" gorm:"index:ref_idx;type:varchar(100);"`
-	RetryTimes   uint8      `json:"retry_times" gorm:"default:0;"`
+	RunAfter          *time.Time `json:"run_after" gorm:"nullable;index:run_after_deleted_at_idx;"`
+	DelaySeconds      uint       `json:"delay_seconds" gorm:"not null;default:0;"`
+	ExpirationSeconds uint       `json:"expiration_seconds" gorm:"not null;default:0;"`
+	Ref               string     `json:"ref" gorm:"index:ref_idx;type:varchar(100);"`
+	RetryTimes        uint8      `json:"retry_times" gorm:"default:0;"`
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

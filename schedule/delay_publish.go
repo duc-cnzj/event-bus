@@ -66,7 +66,12 @@ func DelayPublish(h hub.Interface, lockList *sync.Map) func() {
 									return
 								}
 
-								if err := producer.Publish(hub.NewMessage(queue.Data).SetRetryTimes(queue.RetryTimes).SetRef(queue.UniqueId)); err != nil {
+								if err := producer.Publish(
+									hub.NewMessage(queue.Data).
+										SetMessageExpiration(queue.ExpirationSeconds).
+										SetRetryTimes(queue.RetryTimes).
+										SetRef(queue.UniqueId),
+								); err != nil {
 									log.Error(err)
 									return
 								}
@@ -78,6 +83,7 @@ func DelayPublish(h hub.Interface, lockList *sync.Map) func() {
 
 								if err := producer.Publish(
 									hub.NewMessage(queue.Data).
+										SetMessageExpiration(queue.ExpirationSeconds).
 										SetRetryTimes(queue.RetryTimes).
 										SetRef(queue.UniqueId),
 								); err != nil {

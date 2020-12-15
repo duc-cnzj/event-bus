@@ -71,14 +71,15 @@ func (d *DirectProducer) DelayPublish(message MessageInterface) error {
 	runAfter := time.Now().Add(time.Duration(message.GetDelaySeconds()) * time.Second)
 
 	return d.hub.DelayPublishQueue(models.DelayQueue{
-		UniqueId:     xid.New().String(),
-		Data:         message.GetData(),
-		QueueName:    d.queueName,
-		RunAfter:     &runAfter,
-		DelaySeconds: uint(message.GetDelaySeconds()),
-		Kind:         d.kind,
-		Exchange:     d.exchange,
-		RoutingKey:   d.routingKey,
+		ExpirationSeconds: message.GetMessageExpiration(),
+		UniqueId:          xid.New().String(),
+		Data:              message.GetData(),
+		QueueName:         d.queueName,
+		RunAfter:          &runAfter,
+		DelaySeconds:      uint(message.GetDelaySeconds()),
+		Kind:              d.kind,
+		Exchange:          d.exchange,
+		RoutingKey:        d.routingKey,
 	})
 }
 
@@ -116,7 +117,7 @@ func (d *DirectProducer) Publish(msg MessageInterface) error {
 			amqp.Publishing{
 				ContentType: "application/json",
 				Body:        body,
-				Expiration:  msg.GetMessageExpiration(),
+				Expiration:  msg.GetMessageExpirationString(),
 			},
 		)
 	}
