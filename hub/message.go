@@ -1,10 +1,12 @@
 package hub
 
 import (
+	"strconv"
 	"time"
 )
 
 type MessageInterface interface {
+	SetMessageExpiration(seconds uint) MessageInterface
 	SetExchange(exchange string) MessageInterface
 	SetRunAfter(runAfter *time.Time) MessageInterface
 	SetRetryTimes(times uint8) MessageInterface
@@ -26,6 +28,7 @@ type MessageInterface interface {
 	GetRetryTimes() uint8
 	GetDelaySeconds() int64
 	IsDelay() bool
+	GetMessageExpiration() string
 }
 
 type ConfirmMessage struct {
@@ -72,10 +75,25 @@ type Message struct {
 
 	// 延迟队列数据
 	DelaySeconds time.Duration
+	Expiration   uint
 }
 
 func NewMessage(data string) *Message {
 	return &Message{Data: data}
+}
+
+func (m *Message) SetMessageExpiration(seconds uint) MessageInterface {
+	m.Expiration = seconds
+
+	return m
+}
+
+func (m *Message) GetMessageExpiration() string {
+	if m.Expiration > 0 {
+		return strconv.Itoa(int(m.Expiration) * 1000)
+	}
+
+	return ""
 }
 
 func (m *Message) SetExchange(exchange string) MessageInterface {

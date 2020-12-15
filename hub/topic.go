@@ -237,6 +237,7 @@ func (p *TopicProducer) Publish(message MessageInterface) error {
 			amqp.Publishing{
 				ContentType: "application/json",
 				Body:        body,
+				Expiration:  message.GetMessageExpiration(),
 			},
 		)
 	}

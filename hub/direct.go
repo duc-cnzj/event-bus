@@ -116,6 +116,7 @@ func (d *DirectProducer) Publish(msg MessageInterface) error {
 			amqp.Publishing{
 				ContentType: "application/json",
 				Body:        body,
+				Expiration:  msg.GetMessageExpiration(),
 			},
 		)
 	}

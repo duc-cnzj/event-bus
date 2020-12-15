@@ -11,12 +11,14 @@ option php_namespace="DucCnzj\\EventBus\\Mq";
 message PublishRequest {
   string queue = 1;
   string data = 2;
+  uint64 Expiration = 3;
 }
 
 message DelayPublishRequest {
   string queue = 1;
   string data = 2;
   uint64 delaySeconds = 3;
+  uint64 Expiration = 4;
 }
 
 message SubscribeRequest {
@@ -49,12 +51,14 @@ service Mq {
 message TopicPublishRequest {
     string topic = 1;
     string data = 2;
+    uint64 Expiration = 3;
 }
 
 message DelayTopicPublishRequest {
     string topic = 1;
     string data = 2;
     uint64 delaySeconds = 3;
+    uint64 Expiration = 4;
 }
 
 message TopicSubscribeRequest {

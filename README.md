@@ -101,7 +101,6 @@ fiber 通过 `ctx.Query("queue", "test_queue")` 拿出来的 string 被底层改
 ## TODO
 
 1. 关闭长时间没用的连接
-2. 检查 exchange、queue 的定义
 
 ## test case
 
