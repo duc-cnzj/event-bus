@@ -219,13 +219,10 @@ func (p *TopicProducer) Publish(message MessageInterface) error {
 	message.SetKind(p.kind)
 	message.SetRoutingKey(p.routingKey)
 
-	log.Error("msg")
-	log.Error(message)
 	if body, err = json.Marshal(&message); err != nil {
+		log.Error(err)
 		return err
 	}
-	log.Error("p.routingKey")
-	log.Error(p.routingKey)
 	select {
 	case <-p.ChannelDone():
 		return ErrorServerUnavailable

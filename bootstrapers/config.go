@@ -52,7 +52,8 @@ func (c *ConfigLoader) Boot(app *Application) {
 	c.printConfig(app)
 	if app.cfg.Debug {
 		log.SetLevel(log.DebugLevel)
-		//log.SetReportCaller(true)
+	} else {
+		log.SetReportCaller(true)
 	}
 }
 
