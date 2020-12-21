@@ -25,12 +25,15 @@ func ReConnect(url string) *amqp.Connection {
 	log.Warn("reconnecting")
 	timeout, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
 LABEL:
 	for {
 		select {
 		case <-timeout.Done():
 			log.Fatalln("rabbitmq reconnect timeout 60s.")
-		case <-time.After(1 * time.Second):
+		case <-ticker.C:
 			conn, err = NewConn(url)
 			if err == nil {
 				log.Info("reconnected success")

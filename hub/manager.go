@@ -253,9 +253,12 @@ func (cm *ConsumerManager) GetConsumer(queueName, kind, routingKey, exchange str
 
 	if !consumer.DontNeedReBalance() {
 		go func() {
+			t := time.NewTicker(time.Second)
+			defer t.Stop()
+
 			for {
 				select {
-				case <-time.After(time.Second):
+				case <-t.C:
 					cm.hub.ReBalance(consumer.GetQueueName(), consumer.GetKind(), consumer.GetExchange(), consumer.GetRoutingKey())
 				case <-cm.hub.Done():
 					return
