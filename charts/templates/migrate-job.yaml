@@ -1,0 +1,33 @@
+{{- if .Release.IsInstall -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "charts.fullname" . }}-db-migrator-when-install
+spec:
+  template:
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "charts.fullname" . }}-configmap
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      restartPolicy: Never
+      initContainers:
+        - name: check-db-ready
+            image: dmfenton/wait
+            args: ["-h", "{{ .Values.conf.DB_HOST }}", "-p", "{{ .Values.conf.DB_PORT }}"]
+      containers:
+      - name: db-migrator
+        volumeMounts:
+        - name: config
+            mountPath: /config.yaml
+            subPath: config.yaml
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: 
+            - app
+            - migrate
+{{- end }}
