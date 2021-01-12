@@ -1,7 +1,7 @@
 syntax="proto3";
 
 package mq;
-option go_package=".;mq";
+option go_package="github.com/DuC-cnZj/event-bus-proto;mq";
 
 import "google/protobuf/empty.proto";
 
