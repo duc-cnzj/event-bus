@@ -10,7 +10,6 @@ import (
 )
 
 type MQTopic struct {
-	mq.UnimplementedMqTopicServer
 	Hub hub.Interface
 }
 
@@ -106,10 +105,6 @@ func (m *MQTopic) Nack(ctx context.Context, queueId *mq.QueueId) (*empty.Empty, 
 	}
 
 	return &empty.Empty{}, nil
-}
-
-func (m *MQTopic) mustEmbedUnimplementedMQServer() {
-	panic("implement me")
 }
 
 func (m *MQTopic) newProducer(exchange string) (hub.ProducerInterface, error) {
