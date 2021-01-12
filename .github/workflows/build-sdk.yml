@@ -123,6 +123,7 @@ jobs:
           git clone https://DuC-cnZj:${{ secrets.TOKEN }}@$PTOTO_REPO.git repo
           cd repo
           if [ ! -f "go.mod" ]; then go mod init $PTOTO_REPO;fi
+          rm -rf /tmp/repo/*.pb.go
           mv $MYPATH/* /tmp/repo/
           echo $GITHUB_SHA > sha.txt
           echo "build at $(date)" >> sha.txt
