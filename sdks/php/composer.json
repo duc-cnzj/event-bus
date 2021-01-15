@@ -18,6 +18,6 @@
     }
   },
   "require-dev": {
-    "duc_cnzj/rpc-facades-generator": "dev-master"
+    "duc_cnzj/rpc-facades-generator": "^3.0"
   }
 }
