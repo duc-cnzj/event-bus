@@ -3,13 +3,15 @@ package hub
 import (
 	"context"
 	"errors"
+
+	"github.com/DuC-cnZj/event-bus/models"
 	json "github.com/json-iterator/go"
 	"github.com/rs/xid"
-	"mq/models"
+
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
-	"time"
 )
 
 // todo topic consumer 需要监听 topic|topic.queueName 两个队列  topic.queueName 用于重发

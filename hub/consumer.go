@@ -2,6 +2,7 @@ package hub
 
 import (
 	"context"
+
 	"github.com/streadway/amqp"
 )
 

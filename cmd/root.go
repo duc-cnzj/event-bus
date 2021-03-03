@@ -2,10 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/DuC-cnZj/event-bus/bootstrapers"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"mq/bootstrapers"
-	"os"
 )
 
 var app = bootstrapers.App()

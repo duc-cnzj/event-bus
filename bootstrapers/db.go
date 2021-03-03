@@ -2,13 +2,14 @@ package bootstrapers
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/DuC-cnZj/event-bus/adapter"
+	"github.com/DuC-cnZj/event-bus/models"
 	log "github.com/sirupsen/logrus"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"mq/adapter"
-	"mq/models"
-	"time"
 )
 
 type DBLoader struct {

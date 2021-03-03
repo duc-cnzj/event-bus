@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
-	mq "mq/protos"
 	_ "net/http/pprof"
 	"sync"
 	"sync/atomic"
+
+	mq "github.com/DuC-cnZj/event-bus/protos"
+	log "github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 
 	"os"
 	"os/signal"

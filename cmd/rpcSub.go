@@ -1,21 +1,23 @@
 package cmd
 
 import (
-	log "github.com/sirupsen/logrus"
 	_ "net/http/pprof"
 	"runtime"
 	"runtime/pprof"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
+
 	"context"
-	"github.com/spf13/cobra"
-	"google.golang.org/grpc"
-	mq "mq/protos"
 	"os"
 	"os/signal"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	mq "github.com/DuC-cnZj/event-bus/protos"
+	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
 )
 
 // rpcSubCmd represents the rpcSub command

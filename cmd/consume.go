@@ -2,16 +2,17 @@ package cmd
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"mq/conn"
-	"mq/hub"
 	"os"
 	"os/signal"
 	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/DuC-cnZj/event-bus/conn"
+	"github.com/DuC-cnZj/event-bus/hub"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 )
 
 var testConsumerNum int

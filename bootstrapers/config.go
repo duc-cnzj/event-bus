@@ -1,11 +1,12 @@
 package bootstrapers
 
 import (
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/viper"
-	"mq/config"
 	"strconv"
 	"strings"
+
+	"github.com/DuC-cnZj/event-bus/config"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 type ConfigLoader struct {

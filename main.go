@@ -1,7 +1,7 @@
 package main
 
 import (
-	"mq/cmd"
+	"github.com/DuC-cnZj/event-bus/cmd"
 )
 
 func main() {

@@ -3,16 +3,18 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"mq/conn"
-	"mq/hub"
+	"github.com/spf13/cobra"
+
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/DuC-cnZj/event-bus/conn"
+	"github.com/DuC-cnZj/event-bus/hub"
 
 	log "github.com/sirupsen/logrus"
 )

@@ -2,11 +2,12 @@ package lb
 
 import (
 	"fmt"
-	"github.com/rs/xid"
 	"hash/crc32"
 	"strconv"
 	"sync"
 	"testing"
+
+	"github.com/rs/xid"
 )
 
 func TestNewLoadBalancer(t *testing.T) {

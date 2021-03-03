@@ -1,13 +1,14 @@
 package schedule
 
 import (
+	"sync"
+
 	dlm "github.com/DuC-cnZj/dlm"
+	"github.com/DuC-cnZj/event-bus/adapter"
+	"github.com/DuC-cnZj/event-bus/bootstrapers"
+	"github.com/DuC-cnZj/event-bus/hub"
 	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
-	"mq/adapter"
-	"mq/bootstrapers"
-	"mq/hub"
-	"sync"
 )
 
 type Interface interface {

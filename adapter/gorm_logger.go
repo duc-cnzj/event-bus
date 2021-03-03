@@ -2,9 +2,10 @@ package adapter
 
 import (
 	"context"
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
-	"time"
 )
 
 type GormLoggerAdapter struct {

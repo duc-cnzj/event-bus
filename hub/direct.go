@@ -3,9 +3,10 @@ package hub
 import (
 	"context"
 	"errors"
-	json "github.com/json-iterator/go"
-	"mq/models"
 	"time"
+
+	"github.com/DuC-cnZj/event-bus/models"
+	json "github.com/json-iterator/go"
 
 	"github.com/rs/xid"
 

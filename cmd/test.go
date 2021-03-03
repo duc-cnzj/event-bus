@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"github.com/DuC-cnZj/event-bus/hub"
 	"github.com/spf13/cobra"
-	"mq/hub"
 )
 
 var testMessageTotalNum int64

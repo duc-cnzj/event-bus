@@ -2,12 +2,13 @@ package hub
 
 import (
 	"errors"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
-	"mq/lb"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/DuC-cnZj/event-bus/lb"
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
 )
 
 type ProducerManagerInterface interface {

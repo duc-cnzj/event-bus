@@ -3,10 +3,11 @@ package rpc
 import (
 	"context"
 	"errors"
+
+	"github.com/DuC-cnZj/event-bus/hub"
+	mq "github.com/DuC-cnZj/event-bus/protos"
 	"github.com/golang/protobuf/ptypes/empty"
 	log "github.com/sirupsen/logrus"
-	"mq/hub"
-	mq "mq/protos"
 )
 
 type MQTopic struct {

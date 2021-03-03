@@ -1,9 +1,9 @@
 package bootstrapers
 
 import (
+	"github.com/DuC-cnZj/event-bus/config"
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
-	"mq/config"
 )
 
 var app = &Application{

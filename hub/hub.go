@@ -3,16 +3,17 @@ package hub
 import (
 	"context"
 	"database/sql"
+	"sync/atomic"
+	"time"
+
+	"github.com/DuC-cnZj/event-bus/config"
+	conn2 "github.com/DuC-cnZj/event-bus/conn"
+	"github.com/DuC-cnZj/event-bus/models"
 	json "github.com/json-iterator/go"
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"mq/config"
-	conn2 "mq/conn"
-	"mq/models"
-	"sync/atomic"
-	"time"
 )
 
 var _ Interface = (*Hub)(nil)

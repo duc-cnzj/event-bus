@@ -1,10 +1,11 @@
 package models
 
 import (
-	"github.com/streadway/amqp"
-	"gorm.io/gorm"
 	"strings"
 	"time"
+
+	"github.com/streadway/amqp"
+	"gorm.io/gorm"
 )
 
 type DelayQueue struct {

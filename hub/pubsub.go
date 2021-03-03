@@ -3,12 +3,14 @@ package hub
 import (
 	"context"
 	"errors"
+
 	json "github.com/json-iterator/go"
 	"github.com/rs/xid"
 
+	"time"
+
 	log "github.com/sirupsen/logrus"
 	"github.com/streadway/amqp"
-	"time"
 )
 
 // FIXME: 该模式下无法实现 ack 机制

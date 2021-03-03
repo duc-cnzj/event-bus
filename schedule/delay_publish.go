@@ -1,13 +1,14 @@
 package schedule
 
 import (
-	dlm "github.com/DuC-cnZj/dlm"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
-	"mq/hub"
-	"mq/models"
 	"sync"
 	"time"
+
+	dlm "github.com/DuC-cnZj/dlm"
+	"github.com/DuC-cnZj/event-bus/hub"
+	"github.com/DuC-cnZj/event-bus/models"
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
 )
 
 func DelayPublish(h hub.Interface, lockList *sync.Map) func() {

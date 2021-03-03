@@ -2,11 +2,12 @@ package hub
 
 import (
 	"encoding/json"
-	log "github.com/sirupsen/logrus"
-	"github.com/streadway/amqp"
 	"os"
 	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/streadway/amqp"
 )
 
 var RecheckExchange = "recheck_exchange_for_rebalancer"
